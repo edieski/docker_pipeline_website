@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useGameStore } from '../../store/gameStore'
@@ -6,61 +6,67 @@ import ConceptCard from '../ConceptCard'
 import missionsData from '../../missions.json'
 
 interface DeploymentConfig {
-  registry_url: string
-  image_tag: string
+  imageTag: string
+  port: number
   environment: string
-  database_url: string
-  api_key: string
-  deployment_strategy: string
   replicas: number
+  resources: {
+    cpu: string
+    memory: string
+  }
+  environmentVariables: Array<{
+    name: string
+    value: string
+  }>
+  healthCheck: {
+    enabled: boolean
+    path: string
+    interval: number
+  }
+  secrets: Array<{
+    name: string
+    key: string
+  }>
 }
 
-interface ConfigStepProps {
-  title: string
+interface DeploymentSetting {
+  id: string
+  name: string
   description: string
-  children: React.ReactNode
-  completed: boolean
-}
-
-const ConfigStep: React.FC<ConfigStepProps> = ({ title, description, children, completed }) => {
-  return (
-    <div className={`p-6 rounded-lg border-2 transition-all ${
-      completed ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-white'
-    }`}>
-      <div className="flex items-center mb-4">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
-          completed ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'
-        }`}>
-          {completed ? '✓' : '1'}
-        </div>
-        <div>
-          <h3 className="font-semibold text-gray-800">{title}</h3>
-          <p className="text-sm text-gray-600">{description}</p>
-        </div>
-      </div>
-      {children}
-    </div>
-  )
+  type: 'text' | 'number' | 'select' | 'boolean' | 'array'
+  required: boolean
+  options?: string[]
+  explanation: string
+  category: 'basic' | 'scaling' | 'security' | 'monitoring'
 }
 
 const DeployOrDie: React.FC = () => {
   const navigate = useNavigate()
   const { player, updateMissionProgress, unlockNextMission } = useGameStore()
   const [config, setConfig] = useState<DeploymentConfig>({
-    registry_url: '',
-    image_tag: '',
+    imageTag: '',
+    port: 0,
     environment: '',
-    database_url: '',
-    api_key: '',
-    deployment_strategy: '',
-    replicas: 1
+    replicas: 1,
+    resources: {
+      cpu: '',
+      memory: ''
+    },
+    environmentVariables: [],
+    healthCheck: {
+      enabled: false,
+      path: '',
+      interval: 30
+    },
+    secrets: []
   })
   const [gameCompleted, setGameCompleted] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'success' | 'failed'>('idle')
-  const [currentStep, setCurrentStep] = useState(1)
+  const [currentStep, setCurrentStep] = useState(0)
+  const [showExplanation, setShowExplanation] = useState(false)
+  const [selectedSetting, setSelectedSetting] = useState<DeploymentSetting | null>(null)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   const mission = missionsData.missions.find(m => m.id === 5)
   
@@ -69,114 +75,249 @@ const DeployOrDie: React.FC = () => {
     return null
   }
 
-  const validValues = mission.validation?.validValues as Record<string, string[]> || {}
-
-  const handleConfigChange = (field: keyof DeploymentConfig, value: string) => {
-    setConfig(prev => ({ ...prev, [field]: value }))
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }))
+  const deploymentSettings: DeploymentSetting[] = [
+    {
+      id: 'imageTag',
+      name: 'Image Tag',
+      description: 'The Docker image version to deploy',
+      type: 'text',
+      required: true,
+      explanation: 'The image tag specifies which version of your application to deploy. Use semantic versioning like "v1.2.3" or environment-specific tags like "staging" or "production".',
+      category: 'basic'
+    },
+    {
+      id: 'port',
+      name: 'Port',
+      description: 'The port your application listens on',
+      type: 'number',
+      required: true,
+      explanation: 'Ports are like door numbers for network communication. Your app listens on a specific port (e.g., 3000 for React, 8080 for Java). The load balancer routes traffic to this port.',
+      category: 'basic'
+    },
+    {
+      id: 'environment',
+      name: 'Environment',
+      description: 'Deployment environment (dev, staging, production)',
+      type: 'select',
+      required: true,
+      options: ['development', 'staging', 'production'],
+      explanation: 'Different environments have different configurations. Development might use debug settings, while production needs optimized performance and security.',
+      category: 'basic'
+    },
+    {
+      id: 'replicas',
+      name: 'Replicas',
+      description: 'Number of application instances to run',
+      type: 'number',
+      required: true,
+      explanation: 'Replicas are copies of your application running simultaneously. More replicas = better availability and performance, but also higher resource usage.',
+      category: 'scaling'
+    },
+    {
+      id: 'cpu',
+      name: 'CPU Limit',
+      description: 'Maximum CPU resources per instance',
+      type: 'select',
+      required: true,
+      options: ['100m', '200m', '500m', '1000m', '2000m'],
+      explanation: 'CPU limits prevent one application from consuming all server resources. "100m" = 0.1 CPU cores, "1000m" = 1 full CPU core.',
+      category: 'scaling'
+    },
+    {
+      id: 'memory',
+      name: 'Memory Limit',
+      description: 'Maximum memory per instance',
+      type: 'select',
+      required: true,
+      options: ['128Mi', '256Mi', '512Mi', '1Gi', '2Gi'],
+      explanation: 'Memory limits prevent memory leaks from crashing the server. "128Mi" = 128 megabytes, "1Gi" = 1 gigabyte.',
+      category: 'scaling'
+    },
+    {
+      id: 'envVars',
+      name: 'Environment Variables',
+      description: 'Configuration values for your application',
+      type: 'array',
+      required: false,
+      explanation: 'Environment variables store configuration like database URLs, API keys, and feature flags. They keep sensitive data out of your code.',
+      category: 'security'
+    },
+    {
+      id: 'healthCheck',
+      name: 'Health Check',
+      description: 'Monitor application health',
+      type: 'boolean',
+      required: false,
+      explanation: 'Health checks verify your app is working correctly. If the check fails, the load balancer stops sending traffic to that instance.',
+      category: 'monitoring'
+    },
+    {
+      id: 'secrets',
+      name: 'Secrets',
+      description: 'Secure storage for sensitive data',
+      type: 'array',
+      required: false,
+      explanation: 'Secrets store sensitive information like passwords and API keys securely, separate from your application code.',
+      category: 'security'
     }
-  }
+  ]
+
+  const steps = [
+    { title: 'Basic Settings', settings: deploymentSettings.filter(s => s.category === 'basic') },
+    { title: 'Scaling & Resources', settings: deploymentSettings.filter(s => s.category === 'scaling') },
+    { title: 'Security & Monitoring', settings: deploymentSettings.filter(s => s.category === 'security' || s.category === 'monitoring') }
+  ]
+
+  useEffect(() => {
+    // Auto-validate as user fills out the form
+    validateConfig()
+  }, [config])
 
   const validateConfig = () => {
-    const newErrors: Record<string, string> = {}
-    const requiredFields = mission.validation?.requiredFields || []
+    const errors: Record<string, string> = {}
     
-    // Check required fields
-    requiredFields.forEach(field => {
-      if (!config[field as keyof DeploymentConfig]) {
-        newErrors[field] = 'This field is required'
-      }
-    })
-    
-    // Validate specific field values
-    Object.entries(validValues).forEach(([field, validOptions]) => {
-      const value = config[field as keyof DeploymentConfig]
-      if (value && Array.isArray(validOptions) && !validOptions.includes(String(value))) {
-        newErrors[field] = `Invalid value. Must be one of: ${validOptions.join(', ')}`
-      }
-    })
-    
-    // Custom validations
-    if (config.registry_url && !config.registry_url.includes('/')) {
-      newErrors.registry_url = 'Registry URL must include organization/repository'
+    if (!config.imageTag) {
+      errors.imageTag = 'Image tag is required'
+    } else if (!/^[a-zA-Z0-9._-]+$/.test(config.imageTag)) {
+      errors.imageTag = 'Invalid image tag format'
     }
     
-    if (config.api_key && config.api_key.length < 10) {
-      newErrors.api_key = 'API key must be at least 10 characters'
+    if (!config.port || config.port < 1 || config.port > 65535) {
+      errors.port = 'Port must be between 1 and 65535'
     }
     
-    if (Number(config.replicas) < 1 || Number(config.replicas) > 10) {
-      newErrors.replicas = 'Replicas must be between 1 and 10'
+    if (!config.environment) {
+      errors.environment = 'Environment is required'
     }
     
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    if (!config.replicas || config.replicas < 1) {
+      errors.replicas = 'At least 1 replica is required'
+    }
+    
+    if (!config.resources.cpu) {
+      errors.cpu = 'CPU limit is required'
+    }
+    
+    if (!config.resources.memory) {
+      errors.memory = 'Memory limit is required'
+    }
+    
+    setValidationErrors(errors)
   }
 
-  const handleDeploy = async () => {
-    if (!validateConfig()) {
-      return
+  const handleConfigChange = (field: string, value: any) => {
+    if (field.includes('.')) {
+      const [parent, child] = field.split('.')
+      setConfig(prev => ({
+        ...prev,
+        [parent]: {
+          ...(prev[parent as keyof DeploymentConfig] as any),
+          [child]: value
+        }
+      }))
+    } else {
+      setConfig(prev => ({
+        ...prev,
+        [field]: value
+      }))
     }
+  }
+
+  const handleEnvironmentVariableAdd = () => {
+    setConfig(prev => ({
+      ...prev,
+      environmentVariables: [...prev.environmentVariables, { name: '', value: '' }]
+    }))
+  }
+
+  const handleEnvironmentVariableChange = (index: number, field: string, value: string) => {
+    setConfig(prev => ({
+      ...prev,
+      environmentVariables: prev.environmentVariables.map((envVar, i) => 
+        i === index ? { ...envVar, [field]: value } : envVar
+      )
+    }))
+  }
+
+  const handleEnvironmentVariableRemove = (index: number) => {
+    setConfig(prev => ({
+      ...prev,
+      environmentVariables: prev.environmentVariables.filter((_, i) => i !== index)
+    }))
+  }
+
+  const handleSecretAdd = () => {
+    setConfig(prev => ({
+      ...prev,
+      secrets: [...prev.secrets, { name: '', key: '' }]
+    }))
+  }
+
+  const handleSecretChange = (index: number, field: string, value: string) => {
+    setConfig(prev => ({
+      ...prev,
+      secrets: prev.secrets.map((secret, i) => 
+        i === index ? { ...secret, [field]: value } : secret
+      )
+    }))
+  }
+
+  const handleSecretRemove = (index: number) => {
+    setConfig(prev => ({
+      ...prev,
+      secrets: prev.secrets.filter((_, i) => i !== index)
+    }))
+  }
+
+  const handleNextStep = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1)
+    } else {
+      handleDeploy()
+    }
+  }
+
+  const handlePreviousStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const handleDeploy = () => {
+    const validation = validateDeployment()
+    const timeSpent = Date.now() - startTime
     
-    setDeploymentStatus('deploying')
+    updateMissionProgress(5, {
+      completed: validation.success,
+      timeSpent,
+      hintsUsed,
+      score: validation.score
+    })
     
-    // Simulate deployment process
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    setGameCompleted(true)
     
-    // Check if deployment would succeed based on config
-    const wouldSucceed = config.environment === 'production' && 
-                        config.deployment_strategy === 'rolling' &&
-                        config.registry_url.includes('docker.io') &&
-                        config.api_key.length >= 10
-    
-    setDeploymentStatus(wouldSucceed ? 'success' : 'failed')
-    
-    if (wouldSucceed) {
-      setTimeout(() => {
-        const validation = validateDeployment()
-        const timeSpent = Date.now() - startTime
-        
-        updateMissionProgress(5, {
-          completed: true,
-          timeSpent,
-          hintsUsed,
-          score: validation.score
-        })
-        
-        setGameCompleted(true)
-        unlockNextMission()
-      }, 2000)
+    if (validation.success) {
+      unlockNextMission()
     }
   }
 
   const validateDeployment = () => {
-    let score = 0
-    const requiredFields = mission.validation?.requiredFields || []
+    const errors = Object.keys(validationErrors).length
+    let score = 100
     
-    // Points for filling required fields
-    const filledFields = requiredFields.filter(field => 
-      config[field as keyof DeploymentConfig]
-    ).length
-    
-    score += (filledFields / requiredFields.length) * 60
-    
-    // Points for correct values
-    Object.entries(validValues).forEach(([field, validOptions]) => {
-      const value = config[field as keyof DeploymentConfig]
-      if (Array.isArray(validOptions) && validOptions.includes(String(value))) {
-        score += 10
-      }
-    })
+    // Deduct points for errors
+    score -= errors * 10
     
     // Bonus points for good practices
-    if (config.deployment_strategy === 'rolling') score += 10
-    if (config.environment === 'production') score += 10
-    if (Number(config.replicas) >= 2) score += 10
+    if (config.replicas >= 2) score += 10 // High availability
+    if (config.healthCheck.enabled) score += 10 // Monitoring
+    if (config.environmentVariables.length > 0) score += 5 // Configuration
+    if (config.secrets.length > 0) score += 5 // Security
     
-    return { score: Math.min(score, 100) }
+    return {
+      success: errors === 0 && score >= 70,
+      score: Math.max(0, Math.min(100, score))
+    }
   }
 
   const handleHintUsed = () => {
@@ -187,21 +328,9 @@ const DeployOrDie: React.FC = () => {
     navigate('/')
   }
 
-  const handleRetry = () => {
-    setDeploymentStatus('idle')
-  }
-
-  const isStepCompleted = (step: number) => {
-    switch (step) {
-      case 1:
-        return config.registry_url && config.image_tag && config.environment
-      case 2:
-        return config.database_url && config.api_key
-      case 3:
-        return config.deployment_strategy && config.replicas > 0
-      default:
-        return false
-    }
+  const handleSettingClick = (setting: DeploymentSetting) => {
+    setSelectedSetting(setting)
+    setShowExplanation(true)
   }
 
   if (gameCompleted) {
@@ -214,39 +343,49 @@ const DeployOrDie: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           className="game-container max-w-2xl w-full p-8 text-center"
         >
-          <div className="text-6xl mb-6">🚀</div>
+          <div className="text-6xl mb-6">
+            {validation.success ? '🚀' : '⚠️'}
+          </div>
           
           <h1 className="text-3xl font-bold text-gray-800 mb-4">
-            Deployment Successful!
+            {validation.success ? 'Deployment Successful!' : 'Deployment Failed!'}
           </h1>
           
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Your Results</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Deployment Summary</h2>
             <div className="grid grid-cols-2 gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold text-blue-600">{validation.score}/100</div>
                 <div className="text-sm text-gray-600">Score</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-green-600">{mission.validation?.requiredFields?.length || 0}</div>
-                <div className="text-sm text-gray-600">Fields Configured</div>
+                <div className="text-2xl font-bold text-green-600">{config.replicas}</div>
+                <div className="text-sm text-gray-600">Replicas</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-purple-600">{Math.round((Date.now() - startTime) / 60000)}min</div>
-                <div className="text-sm text-gray-600">Time Spent</div>
+                <div className="text-2xl font-bold text-purple-600">{config.environment}</div>
+                <div className="text-sm text-gray-600">Environment</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-orange-600">{hintsUsed}</div>
-                <div className="text-sm text-gray-600">Hints Used</div>
+                <div className="text-2xl font-bold text-orange-600">{config.port}</div>
+                <div className="text-sm text-gray-600">Port</div>
               </div>
             </div>
           </div>
           
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <p className="text-green-800">
-              🎯 Excellent! You've successfully configured a production deployment with proper registry settings, secrets, and environment variables.
-            </p>
-          </div>
+          {validation.success ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <p className="text-green-800">
+                🎯 Excellent! Your deployment configuration is production-ready with proper scaling, security, and monitoring settings.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <p className="text-yellow-800">
+                💡 Remember: Always configure proper resource limits, health checks, and security settings for production deployments.
+              </p>
+            </div>
+          )}
           
           <button
             onClick={handleNextMission}
@@ -259,6 +398,8 @@ const DeployOrDie: React.FC = () => {
     )
   }
 
+  const currentStepSettings = steps[currentStep].settings
+
   return (
     <div className="min-h-screen p-4">
       <div className="max-w-6xl mx-auto">
@@ -270,231 +411,242 @@ const DeployOrDie: React.FC = () => {
                 🚀 Mission 5: Deploy or Die
               </h1>
               <p className="text-gray-600">
-                Configure deployment settings and successfully deploy to production
+                Configure deployment settings for a production-ready application
               </p>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500">Hints Used</div>
-              <div className="text-2xl font-bold text-orange-600">{hintsUsed}</div>
+              <div className="text-sm text-gray-500">Step {currentStep + 1} of {steps.length}</div>
+              <div className="text-lg font-bold text-blue-600">{steps[currentStep].title}</div>
             </div>
           </div>
         </div>
 
-        {/* Step-by-Step Configuration */}
-        <div className="space-y-6">
-          {/* Step 1: Basic Configuration */}
-          <ConfigStep
-            title="Basic Configuration"
-            description="Set up your container registry and environment"
-            completed={isStepCompleted(1)}
-          >
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Registry URL <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={config.registry_url}
-                  onChange={(e) => handleConfigChange('registry_url', e.target.value)}
-                  placeholder="docker.io/myorg/myapp"
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.registry_url ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.registry_url && (
-                  <p className="text-sm text-red-600 mt-1">{errors.registry_url}</p>
-                )}
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Left Side - Configuration Form */}
+          <div className="lg:col-span-2">
+            <div className="game-container p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-6">{steps[currentStep].title}</h2>
+              
+              <div className="space-y-6">
+                {currentStepSettings.map((setting) => (
+                  <div key={setting.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-700">
+                        {setting.name} {setting.required && <span className="text-red-500">*</span>}
+                      </label>
+                      <button
+                        onClick={() => handleSettingClick(setting)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        What is this?
+                      </button>
+                    </div>
+                    
+                    <p className="text-xs text-gray-600">{setting.description}</p>
+                    
+                    {setting.type === 'text' && (
+                      <input
+                        type="text"
+                        value={config[setting.id as keyof DeploymentConfig] as string || ''}
+                        onChange={(e) => handleConfigChange(setting.id, e.target.value)}
+                        className={`w-full p-3 border rounded-lg ${
+                          validationErrors[setting.id] ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder={`Enter ${setting.name.toLowerCase()}`}
+                      />
+                    )}
+                    
+                    {setting.type === 'number' && (
+                      <input
+                        type="number"
+                        value={config[setting.id as keyof DeploymentConfig] as number || ''}
+                        onChange={(e) => handleConfigChange(setting.id, parseInt(e.target.value) || 0)}
+                        className={`w-full p-3 border rounded-lg ${
+                          validationErrors[setting.id] ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder={`Enter ${setting.name.toLowerCase()}`}
+                      />
+                    )}
+                    
+                    {setting.type === 'select' && (
+                      <select
+                        value={config[setting.id as keyof DeploymentConfig] as string || ''}
+                        onChange={(e) => handleConfigChange(setting.id, e.target.value)}
+                        className={`w-full p-3 border rounded-lg ${
+                          validationErrors[setting.id] ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      >
+                        <option value="">Select {setting.name}</option>
+                        {setting.options?.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    )}
+                    
+                    {setting.type === 'boolean' && (
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={config.healthCheck.enabled}
+                          onChange={(e) => handleConfigChange('healthCheck.enabled', e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                        />
+                        <span className="text-sm text-gray-700">Enable {setting.name}</span>
+                      </div>
+                    )}
+                    
+                    {setting.id === 'envVars' && (
+                      <div className="space-y-3">
+                        <button
+                          onClick={handleEnvironmentVariableAdd}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Add Environment Variable
+                        </button>
+                        {config.environmentVariables.map((envVar, index) => (
+                          <div key={index} className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={envVar.name}
+                              onChange={(e) => handleEnvironmentVariableChange(index, 'name', e.target.value)}
+                              placeholder="Variable name"
+                              className="flex-1 p-2 border border-gray-300 rounded"
+                            />
+                            <input
+                              type="text"
+                              value={envVar.value}
+                              onChange={(e) => handleEnvironmentVariableChange(index, 'value', e.target.value)}
+                              placeholder="Value"
+                              className="flex-1 p-2 border border-gray-300 rounded"
+                            />
+                            <button
+                              onClick={() => handleEnvironmentVariableRemove(index)}
+                              className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {setting.id === 'secrets' && (
+                      <div className="space-y-3">
+                        <button
+                          onClick={handleSecretAdd}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Add Secret
+                        </button>
+                        {config.secrets.map((secret, index) => (
+                          <div key={index} className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={secret.name}
+                              onChange={(e) => handleSecretChange(index, 'name', e.target.value)}
+                              placeholder="Secret name"
+                              className="flex-1 p-2 border border-gray-300 rounded"
+                            />
+                            <input
+                              type="text"
+                              value={secret.key}
+                              onChange={(e) => handleSecretChange(index, 'key', e.target.value)}
+                              placeholder="Secret key"
+                              className="flex-1 p-2 border border-gray-300 rounded"
+                            />
+                            <button
+                              onClick={() => handleSecretRemove(index)}
+                              className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {validationErrors[setting.id] && (
+                      <p className="text-red-500 text-sm">{validationErrors[setting.id]}</p>
+                    )}
+                  </div>
+                ))}
               </div>
               
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Image Tag <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={config.image_tag}
-                  onChange={(e) => handleConfigChange('image_tag', e.target.value)}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.image_tag ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Select tag</option>
-                  {(validValues.image_tag || []).map((tag) => (
-                    <option key={tag} value={tag}>{tag}</option>
-                  ))}
-                </select>
-                {errors.image_tag && (
-                  <p className="text-sm text-red-600 mt-1">{errors.image_tag}</p>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Environment <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={config.environment}
-                  onChange={(e) => handleConfigChange('environment', e.target.value)}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.environment ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Select environment</option>
-                  {(validValues.environment || []).map((env) => (
-                    <option key={env} value={env}>{env}</option>
-                  ))}
-                </select>
-                {errors.environment && (
-                  <p className="text-sm text-red-600 mt-1">{errors.environment}</p>
-                )}
-              </div>
-            </div>
-          </ConfigStep>
-
-          {/* Step 2: Secrets & Database */}
-          <ConfigStep
-            title="Secrets & Database"
-            description="Configure sensitive data and database connection"
-            completed={isStepCompleted(2)}
-          >
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Database URL <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={config.database_url}
-                  onChange={(e) => handleConfigChange('database_url', e.target.value)}
-                  placeholder="postgresql://user:pass@host:5432/db"
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.database_url ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.database_url && (
-                  <p className="text-sm text-red-600 mt-1">{errors.database_url}</p>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  API Key <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={config.api_key}
-                  onChange={(e) => handleConfigChange('api_key', e.target.value)}
-                  placeholder="sk-1234567890abcdef"
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.api_key ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.api_key && (
-                  <p className="text-sm text-red-600 mt-1">{errors.api_key}</p>
-                )}
-              </div>
-            </div>
-          </ConfigStep>
-
-          {/* Step 3: Deployment Strategy */}
-          <ConfigStep
-            title="Deployment Strategy"
-            description="Choose how to deploy and scale your application"
-            completed={isStepCompleted(3)}
-          >
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Deployment Strategy <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={config.deployment_strategy}
-                  onChange={(e) => handleConfigChange('deployment_strategy', e.target.value)}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.deployment_strategy ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Select strategy</option>
-                  {(validValues.deployment_strategy || []).map((strategy) => (
-                    <option key={strategy} value={strategy}>{strategy}</option>
-                  ))}
-                </select>
-                {errors.deployment_strategy && (
-                  <p className="text-sm text-red-600 mt-1">{errors.deployment_strategy}</p>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Replicas
-                </label>
-                <input
-                  type="number"
-                  value={config.replicas}
-                  onChange={(e) => handleConfigChange('replicas', e.target.value)}
-                  min="1"
-                  max="10"
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.replicas ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.replicas && (
-                  <p className="text-sm text-red-600 mt-1">{errors.replicas}</p>
-                )}
-              </div>
-            </div>
-          </ConfigStep>
-        </div>
-
-        {/* Deployment Status */}
-        {deploymentStatus !== 'idle' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="game-container p-6 mt-6"
-          >
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Deployment Status</h3>
-            
-            {deploymentStatus === 'deploying' && (
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Deploying to production...</p>
-              </div>
-            )}
-            
-            {deploymentStatus === 'success' && (
-              <div className="text-center">
-                <div className="text-4xl mb-4">✅</div>
-                <p className="text-green-600 font-semibold">Deployment Successful!</p>
-                <p className="text-gray-600">Your application is now live in production.</p>
-              </div>
-            )}
-            
-            {deploymentStatus === 'failed' && (
-              <div className="text-center">
-                <div className="text-4xl mb-4">❌</div>
-                <p className="text-red-600 font-semibold">Deployment Failed</p>
-                <p className="text-gray-600 mb-4">Check your configuration and try again.</p>
+              {/* Navigation */}
+              <div className="flex justify-between mt-8">
                 <button
-                  onClick={handleRetry}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  onClick={handlePreviousStep}
+                  disabled={currentStep === 0}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
                 >
-                  Retry Deployment
+                  Previous
+                </button>
+                <button
+                  onClick={handleNextStep}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  {currentStep === steps.length - 1 ? 'Deploy' : 'Next'}
                 </button>
               </div>
-            )}
-          </motion.div>
-        )}
+            </div>
+          </div>
 
-        {/* Deploy Button */}
-        <div className="mt-8 flex justify-center">
-          <button
-            onClick={handleDeploy}
-            disabled={deploymentStatus === 'deploying' || !isStepCompleted(3)}
-            className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {deploymentStatus === 'deploying' ? 'Deploying...' : 'Deploy to Production'}
-          </button>
+          {/* Right Side - Help & Preview */}
+          <div className="space-y-6">
+            {/* Current Configuration Preview */}
+            <div className="game-container p-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Configuration Preview</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Image:</span>
+                  <span className="font-mono">{config.imageTag || 'Not set'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Port:</span>
+                  <span className="font-mono">{config.port || 'Not set'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Environment:</span>
+                  <span className="font-mono">{config.environment || 'Not set'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Replicas:</span>
+                  <span className="font-mono">{config.replicas}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">CPU:</span>
+                  <span className="font-mono">{config.resources.cpu || 'Not set'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Memory:</span>
+                  <span className="font-mono">{config.resources.memory || 'Not set'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Help */}
+            <div className="game-container p-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Quick Help</h3>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <div className="font-semibold text-gray-700">Ports:</div>
+                  <div className="text-gray-600">Like door numbers for network traffic</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-700">Replicas:</div>
+                  <div className="text-gray-600">More copies = better availability</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-700">Resources:</div>
+                  <div className="text-gray-600">CPU and memory limits per instance</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-700">Environment Variables:</div>
+                  <div className="text-gray-600">Configuration without hardcoding</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Concept Card */}
@@ -506,38 +658,62 @@ const DeployOrDie: React.FC = () => {
           />
         </div>
 
-        {/* Deployment Checklist */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="game-container p-6 mt-6"
-        >
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Deployment Checklist</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <h4 className="font-semibold text-gray-700 mb-2">Required Fields:</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                {(mission.validation?.requiredFields || []).map((field) => (
-                  <li key={field} className="flex items-center">
-                    <span className={`w-2 h-2 rounded-full mr-2 ${
-                      config[field as keyof DeploymentConfig] ? 'bg-green-500' : 'bg-gray-300'
-                    }`} />
-                    {field.replace('_', ' ')}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-700 mb-2">Best Practices:</h4>
-              <div className="text-sm text-gray-600 space-y-1">
-                <div>• Use rolling deployment for zero downtime</div>
-                <div>• Set up health checks for monitoring</div>
-                <div>• Use proper registry URLs with organization</div>
-                <div>• Configure resource limits for stability</div>
+        {/* Explanation Modal */}
+        {showExplanation && selectedSetting && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-lg p-6 max-w-2xl w-full"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-bold text-gray-800">{selectedSetting.name}</h3>
+                <button
+                  onClick={() => setShowExplanation(false)}
+                  className="text-gray-500 hover:text-gray-700 text-xl"
+                >
+                  ×
+                </button>
               </div>
-            </div>
+              <div className="space-y-4">
+                <p className="text-gray-700">{selectedSetting.explanation}</p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-800 mb-2">Best Practices:</h4>
+                  <ul className="text-blue-700 text-sm space-y-1">
+                    {selectedSetting.category === 'basic' && (
+                      <>
+                        <li>• Use semantic versioning for image tags</li>
+                        <li>• Choose standard ports (80, 443, 3000, 8080)</li>
+                        <li>• Match environment to your deployment target</li>
+                      </>
+                    )}
+                    {selectedSetting.category === 'scaling' && (
+                      <>
+                        <li>• Start with 2+ replicas for high availability</li>
+                        <li>• Set resource limits to prevent resource exhaustion</li>
+                        <li>• Monitor and adjust based on usage patterns</li>
+                      </>
+                    )}
+                    {selectedSetting.category === 'security' && (
+                      <>
+                        <li>• Store secrets separately from code</li>
+                        <li>• Use environment variables for configuration</li>
+                        <li>• Rotate secrets regularly</li>
+                      </>
+                    )}
+                    {selectedSetting.category === 'monitoring' && (
+                      <>
+                        <li>• Enable health checks for all services</li>
+                        <li>• Set appropriate check intervals</li>
+                        <li>• Monitor response times and error rates</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </motion.div>
+        )}
       </div>
     </div>
   )
