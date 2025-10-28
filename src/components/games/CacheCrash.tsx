@@ -11,29 +11,22 @@ interface DockerInstruction {
   id: string
   content: string
   type: 'instruction'
+  explanation: string
   optimized?: boolean
 }
 
-interface DropZoneProps {
+interface DropSlotProps {
+  index: number
+  instruction: DockerInstruction | null
   onDrop: (item: DockerInstruction, index: number) => void
-  instructions: (DockerInstruction | null)[]
+  onRemove: (index: number) => void
 }
 
-const DropZone: React.FC<DropZoneProps> = ({ onDrop, instructions }) => {
+const DropSlot: React.FC<DropSlotProps> = ({ index, instruction, onDrop, onRemove }) => {
   const [{ isOver }, drop] = useDrop({
     accept: 'docker-instruction',
-    drop: (item: DockerInstruction, monitor) => {
-      const clientOffset = monitor.getClientOffset()
-      if (!clientOffset) return
-      
-      const rect = (monitor.getDropResult() as any)?.getBoundingClientRect?.()
-      if (!rect) return
-      
-      const x = clientOffset.x - rect.left
-      const slotWidth = rect.width / instructions.length
-      const index = Math.floor(x / slotWidth)
-      
-      onDrop(item, Math.min(index, instructions.length - 1))
+    drop: (item: DockerInstruction) => {
+      onDrop(item, index)
     },
     collect: (monitor) => ({
       isOver: monitor.isOver()
@@ -43,35 +36,47 @@ const DropZone: React.FC<DropZoneProps> = ({ onDrop, instructions }) => {
   return (
     <div
       ref={drop}
-      className={`drop-zone ${isOver ? 'drag-over' : ''}`}
-      style={{ minHeight: '300px' }}
+      className={`min-h-20 border-2 border-dashed rounded-lg flex items-center justify-center p-3 transition-all duration-200 ${
+        isOver 
+          ? 'border-blue-500 bg-blue-50 scale-105' 
+          : instruction 
+            ? 'border-green-500 bg-green-50' 
+            : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+      }`}
     >
-      <div className="grid grid-cols-1 gap-2">
-        {instructions.map((instruction, index) => (
-          <div
-            key={index}
-            className="min-h-12 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center p-2"
-          >
-            {instruction ? (
-              <div className={`docker-instruction w-full text-center ${instruction.optimized ? 'bg-green-100 border-green-300' : ''}`}>
-                {instruction.content}
-              </div>
-            ) : (
-              <span className="text-gray-400 text-sm">Drop Docker instruction here</span>
-            )}
+      {instruction ? (
+        <div className="flex items-center justify-between w-full">
+          <div className="flex-1">
+            <div className="text-sm font-mono text-gray-800 text-center mb-1">
+              {instruction.content}
+            </div>
+            <div className="text-xs text-gray-600 text-center">
+              {instruction.explanation}
+            </div>
           </div>
-        ))}
-      </div>
+          <button
+            onClick={() => onRemove(index)}
+            className="ml-2 text-red-500 hover:text-red-700 text-lg font-bold"
+            title="Remove this instruction"
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <span className="text-gray-400 text-sm text-center">
+          Step {index + 1}<br />
+          <span className="text-xs">Drop instruction here</span>
+        </span>
+      )}
     </div>
   )
 }
 
 interface DraggableInstructionProps {
   instruction: DockerInstruction
-  onRemove?: () => void
 }
 
-const DraggableInstruction: React.FC<DraggableInstructionProps> = ({ instruction, onRemove }) => {
+const DraggableInstruction: React.FC<DraggableInstructionProps> = ({ instruction }) => {
   const [{ isDragging }, drag] = useDrag({
     type: 'docker-instruction',
     item: instruction,
@@ -83,10 +88,16 @@ const DraggableInstruction: React.FC<DraggableInstructionProps> = ({ instruction
   return (
     <div
       ref={drag}
-      className={`docker-instruction ${isDragging ? 'opacity-50' : ''} cursor-grab ${instruction.optimized ? 'bg-green-100 border-green-300' : ''}`}
-      onClick={onRemove}
+      className={`p-3 bg-white border-2 border-blue-500 rounded-lg cursor-grab hover:shadow-md transition-all duration-200 ${
+        isDragging ? 'opacity-50 scale-95' : 'hover:scale-105'
+      }`}
     >
-      {instruction.content}
+      <div className="text-sm font-mono text-gray-800 text-center mb-1">
+        {instruction.content}
+      </div>
+      <div className="text-xs text-gray-600 text-center">
+        {instruction.explanation}
+      </div>
     </div>
   )
 }
@@ -103,6 +114,7 @@ const CacheCrash: React.FC = () => {
   const [appliedOptimizations, setAppliedOptimizations] = useState<string[]>([])
   const [buildTime, setBuildTime] = useState(45)
   const [imageSize, setImageSize] = useState(450)
+  const [showExplanation, setShowExplanation] = useState(false)
 
   const mission = missionsData.missions.find(m => m.id === 2)
   
@@ -114,20 +126,58 @@ const CacheCrash: React.FC = () => {
   const difficultySettings = mission.difficulty[player.difficulty as keyof typeof mission.difficulty] as { hints: number; targetSize: number; targetTime: number }
 
   useEffect(() => {
-    // Initialize game based on difficulty
-    const allInstructions = (mission.validation?.instructions || []).map((content, index) => ({
-      id: `instruction-${index}`,
-      content,
-      type: 'instruction' as const,
-      optimized: false
-    }))
+    // Initialize game with better explanations
+    const instructionsWithExplanations: DockerInstruction[] = [
+      {
+        id: 'from',
+        content: 'FROM python:3.12-slim',
+        type: 'instruction',
+        explanation: 'Start with lightweight base image'
+      },
+      {
+        id: 'workdir',
+        content: 'WORKDIR /app',
+        type: 'instruction',
+        explanation: 'Set working directory'
+      },
+      {
+        id: 'copy-reqs',
+        content: 'COPY requirements.txt .',
+        type: 'instruction',
+        explanation: 'Copy dependency list first (for caching)'
+      },
+      {
+        id: 'install',
+        content: 'RUN pip install --no-cache-dir -r requirements.txt',
+        type: 'instruction',
+        explanation: 'Install dependencies (cached if reqs.txt unchanged)'
+      },
+      {
+        id: 'copy-app',
+        content: 'COPY . .',
+        type: 'instruction',
+        explanation: 'Copy application code last'
+      },
+      {
+        id: 'expose',
+        content: 'EXPOSE 8000',
+        type: 'instruction',
+        explanation: 'Document the port'
+      },
+      {
+        id: 'cmd',
+        content: 'CMD ["python", "app.py"]',
+        type: 'instruction',
+        explanation: 'Start the application'
+      }
+    ]
     
     // Shuffle instructions for the puzzle
-    const shuffled = [...allInstructions].sort(() => Math.random() - 0.5)
+    const shuffled = [...instructionsWithExplanations].sort(() => Math.random() - 0.5)
     setAvailableInstructions(shuffled)
     
     // Initialize empty drop zones
-    setDroppedInstructions(new Array(allInstructions.length).fill(null))
+    setDroppedInstructions(new Array(instructionsWithExplanations.length).fill(null))
     
     // Set initial build metrics
     setBuildTime(45)
@@ -135,66 +185,102 @@ const CacheCrash: React.FC = () => {
   }, [mission, player])
 
   const handleDrop = (item: DockerInstruction, index: number) => {
+    // Remove from available instructions
+    setAvailableInstructions(prev => prev.filter(instruction => instruction.id !== item.id))
+    
+    // Add to dropped instructions
     setDroppedInstructions(prev => {
       const newInstructions = [...prev]
       newInstructions[index] = item
       return newInstructions
     })
     
-    setAvailableInstructions(prev => prev.filter(instruction => instruction.id !== item.id))
+    // Update build metrics based on layer order
+    updateBuildMetrics()
+  }
+
+  const handleRemove = (index: number) => {
+    const instructionToRemove = droppedInstructions[index]
+    if (!instructionToRemove) return
+    
+    // Add back to available instructions
+    setAvailableInstructions(prev => [...prev, instructionToRemove])
+    
+    // Remove from dropped instructions
+    setDroppedInstructions(prev => {
+      const newInstructions = [...prev]
+      newInstructions[index] = null
+      return newInstructions
+    })
+    
+    // Update build metrics
+    updateBuildMetrics()
+  }
+
+  const updateBuildMetrics = () => {
+    const instructions = droppedInstructions.filter(inst => inst !== null) as DockerInstruction[]
+    
+    // Check for proper layer ordering (dependencies before code)
+    const hasRequirementsFirst = instructions.some(inst => 
+      inst.id === 'copy-reqs' && 
+      instructions.indexOf(inst) < instructions.findIndex(i => i.id === 'copy-app')
+    )
+    
+    const hasDependenciesBeforeCode = instructions.some(inst => 
+      inst.id === 'install' && 
+      instructions.indexOf(inst) < instructions.findIndex(i => i.id === 'copy-app')
+    )
+    
+    // Calculate build time and image size based on optimization
+    let newBuildTime = 45
+    let newImageSize = 450
+    
+    if (hasRequirementsFirst && hasDependenciesBeforeCode) {
+      newBuildTime = Math.max(newBuildTime - 15, 20)
+      newImageSize = Math.max(newImageSize - 50, 200)
+    }
+    
+    // Apply optimization bonuses
+    const optimizationBonus = appliedOptimizations.length * 5
+    newBuildTime = Math.max(newBuildTime - optimizationBonus, 15)
+    newImageSize = Math.max(newImageSize - (optimizationBonus * 2), 150)
+    
+    setBuildTime(newBuildTime)
+    setImageSize(newImageSize)
   }
 
   const applyOptimization = (optimization: string) => {
     if (appliedOptimizations.includes(optimization)) return
     
     setAppliedOptimizations(prev => [...prev, optimization])
-    
-    // Update build metrics based on optimization
-    switch (optimization) {
-      case '--no-cache-dir':
-        setBuildTime(prev => Math.max(prev - 5, 15))
-        setImageSize(prev => Math.max(prev - 20, 200))
-        break
-      case '--no-install-recommends':
-        setBuildTime(prev => Math.max(prev - 3, 15))
-        setImageSize(prev => Math.max(prev - 15, 200))
-        break
-      case 'multi-stage build':
-        setBuildTime(prev => Math.max(prev - 8, 15))
-        setImageSize(prev => Math.max(prev - 50, 200))
-        break
-      case '.dockerignore':
-        setBuildTime(prev => Math.max(prev - 2, 15))
-        setImageSize(prev => Math.max(prev - 10, 200))
-        break
-    }
+    updateBuildMetrics()
   }
 
   const validateOptimization = () => {
     const instructions = droppedInstructions.filter(inst => inst !== null) as DockerInstruction[]
     
-    // Check for proper layer ordering (dependencies before code)
+    // Check for proper layer ordering
     let score = 0
     let correctOrder = 0
     
     const hasRequirementsFirst = instructions.some(inst => 
-      inst.content.includes('COPY requirements.txt') && 
-      instructions.indexOf(inst) < instructions.findIndex(i => i.content.includes('COPY . .'))
+      inst.id === 'copy-reqs' && 
+      instructions.indexOf(inst) < instructions.findIndex(i => i.id === 'copy-app')
     )
     
     const hasDependenciesBeforeCode = instructions.some(inst => 
-      inst.content.includes('RUN pip install') && 
-      instructions.indexOf(inst) < instructions.findIndex(i => i.content.includes('COPY . .'))
+      inst.id === 'install' && 
+      instructions.indexOf(inst) < instructions.findIndex(i => i.id === 'copy-app')
     )
     
     if (hasRequirementsFirst) {
       correctOrder++
-      score += 25
+      score += 30
     }
     
     if (hasDependenciesBeforeCode) {
       correctOrder++
-      score += 25
+      score += 30
     }
     
     // Check optimization flags
@@ -202,14 +288,14 @@ const CacheCrash: React.FC = () => {
     score += optimizationScore
     
     // Check if targets are met
-    const targetSize = difficultySettings.targetSize
-    const targetTime = difficultySettings.targetTime
+    const targetSize = difficultySettings.targetSize || 400
+    const targetTime = difficultySettings.targetTime || 30
     
-    if (imageSize <= (targetSize || 400)) {
+    if (imageSize <= targetSize) {
       score += 20
     }
     
-    if (buildTime <= (targetTime || 30)) {
+    if (buildTime <= targetTime) {
       score += 20
     }
     
@@ -226,7 +312,7 @@ const CacheCrash: React.FC = () => {
     const timeSpent = Date.now() - startTime
     
     updateMissionProgress(2, {
-      completed: validation.targetsMet && validation.correctOrder === validation.total,
+      completed: validation.targetsMet && validation.correctCount === validation.total,
       timeSpent,
       hintsUsed,
       score: validation.score
@@ -234,7 +320,7 @@ const CacheCrash: React.FC = () => {
     
     setGameCompleted(true)
     
-    if (validation.targetsMet && validation.correctOrder === validation.total) {
+    if (validation.targetsMet && validation.correctCount === validation.total) {
       unlockNextMission()
     }
   }
@@ -287,24 +373,6 @@ const CacheCrash: React.FC = () => {
             </div>
           </div>
           
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Build Metrics</h3>
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div>
-                <div className={`text-xl font-bold ${buildTime <= (difficultySettings.targetTime || 30) ? 'text-green-600' : 'text-red-600'}`}>
-                  {buildTime}s
-                </div>
-                <div className="text-sm text-gray-600">Build Time (target: {difficultySettings.targetTime || 30}s)</div>
-              </div>
-              <div>
-                <div className={`text-xl font-bold ${imageSize <= (difficultySettings.targetSize || 400) ? 'text-green-600' : 'text-red-600'}`}>
-                  {imageSize}MB
-                </div>
-                <div className="text-sm text-gray-600">Image Size (target: {difficultySettings.targetSize || 400}MB)</div>
-              </div>
-            </div>
-          </div>
-          
           {validation.targetsMet && validation.correctOrder === validation.total ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <p className="text-green-800">
@@ -314,7 +382,7 @@ const CacheCrash: React.FC = () => {
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
               <p className="text-yellow-800">
-                💡 Close! Remember: copy dependencies first, then your code. Use optimization flags to reduce build time and image size.
+                💡 Remember: Copy dependencies first, then your code. This way code changes don't invalidate dependency cache.
               </p>
             </div>
           )}
@@ -333,7 +401,7 @@ const CacheCrash: React.FC = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen p-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="game-container p-6 mb-6">
             <div className="flex justify-between items-center">
@@ -352,9 +420,33 @@ const CacheCrash: React.FC = () => {
             </div>
           </div>
 
+          {/* Why Optimization Matters */}
+          <div className="game-container p-6 mb-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Why Docker Layer Optimization Matters</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 className="font-semibold text-red-800 mb-2">❌ Bad Order (Slow)</h3>
+                <div className="text-sm text-red-700 space-y-1">
+                  <div>1. COPY . . (copies everything)</div>
+                  <div>2. RUN pip install (installs deps)</div>
+                  <div className="font-semibold">→ Every code change rebuilds dependencies!</div>
+                </div>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 className="font-semibold text-green-800 mb-2">✅ Good Order (Fast)</h3>
+                <div className="text-sm text-green-700 space-y-1">
+                  <div>1. COPY requirements.txt (copies deps list)</div>
+                  <div>2. RUN pip install (installs deps)</div>
+                  <div>3. COPY . . (copies code)</div>
+                  <div className="font-semibold">→ Code changes don't rebuild dependencies!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Build Metrics */}
           <div className="game-container p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Build Metrics</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Build Performance</h2>
             <div className="grid grid-cols-2 gap-6">
               <div className="text-center">
                 <div className={`text-3xl font-bold ${buildTime <= (difficultySettings.targetTime || 30) ? 'text-green-600' : 'text-red-600'}`}>
@@ -373,13 +465,12 @@ const CacheCrash: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Game Area */}
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left Side - Available Instructions */}
             <div className="space-y-6">
-              {/* Available Instructions */}
               <div className="game-container p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Available Instructions</h2>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-3">
                   <AnimatePresence>
                     {availableInstructions.map((instruction) => (
                       <motion.div
@@ -393,14 +484,33 @@ const CacheCrash: React.FC = () => {
                     ))}
                   </AnimatePresence>
                 </div>
+                
+                {availableInstructions.length === 0 && (
+                  <div className="text-center text-gray-500 py-8">
+                    <div className="text-4xl mb-2">✅</div>
+                    <p>All instructions have been placed!</p>
+                  </div>
+                )}
               </div>
+            </div>
 
-              {/* Drop Zone */}
+            {/* Right Side - Dockerfile Builder */}
+            <div className="space-y-6">
               <div className="game-container p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Optimized Dockerfile</h2>
-                <DropZone onDrop={handleDrop} instructions={droppedInstructions} />
+                <div className="space-y-3">
+                  {droppedInstructions.map((instruction, index) => (
+                    <DropSlot
+                      key={index}
+                      index={index}
+                      instruction={instruction}
+                      onDrop={handleDrop}
+                      onRemove={handleRemove}
+                    />
+                  ))}
+                </div>
                 
-                <div className="mt-4 flex justify-between">
+                <div className="mt-6 flex justify-between">
                   <button
                     onClick={() => setShowOptimizations(!showOptimizations)}
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
@@ -417,15 +527,15 @@ const CacheCrash: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Concept Card */}
-            <div>
-              <ConceptCard
-                teaching={mission.teaching}
-                difficulty={player.difficulty}
-                onHintUsed={handleHintUsed}
-              />
-            </div>
+          {/* Concept Card */}
+          <div className="mt-8">
+            <ConceptCard
+              teaching={mission.teaching}
+              difficulty={player.difficulty}
+              onHintUsed={handleHintUsed}
+            />
           </div>
 
           {/* Optimization Panel */}
@@ -437,24 +547,24 @@ const CacheCrash: React.FC = () => {
             >
               <h3 className="text-lg font-bold text-gray-800 mb-4">Apply Optimizations</h3>
               <div className="grid grid-cols-2 gap-4">
-                {(mission.validation?.optimizations || []).map((optimization) => (
+                {[
+                  { name: '--no-cache-dir', desc: 'Reduces image size by not caching pip downloads' },
+                  { name: '--no-install-recommends', desc: 'Skips recommended packages to reduce size' },
+                  { name: 'multi-stage build', desc: 'Uses multiple stages to reduce final image size' },
+                  { name: '.dockerignore', desc: 'Excludes unnecessary files from build context' }
+                ].map((optimization) => (
                   <button
-                    key={optimization}
-                    onClick={() => applyOptimization(optimization)}
-                    disabled={appliedOptimizations.includes(optimization)}
+                    key={optimization.name}
+                    onClick={() => applyOptimization(optimization.name)}
+                    disabled={appliedOptimizations.includes(optimization.name)}
                     className={`p-4 rounded-lg border-2 text-left transition-colors ${
-                      appliedOptimizations.includes(optimization)
+                      appliedOptimizations.includes(optimization.name)
                         ? 'bg-green-100 border-green-300 text-green-800'
                         : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-300'
                     }`}
                   >
-                    <div className="font-semibold">{optimization}</div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {optimization === '--no-cache-dir' && 'Reduces image size by not caching pip downloads'}
-                      {optimization === '--no-install-recommends' && 'Skips recommended packages to reduce size'}
-                      {optimization === 'multi-stage build' && 'Uses multiple stages to reduce final image size'}
-                      {optimization === '.dockerignore' && 'Excludes unnecessary files from build context'}
-                    </div>
+                    <div className="font-semibold">{optimization.name}</div>
+                    <div className="text-sm text-gray-600 mt-1">{optimization.desc}</div>
                   </button>
                 ))}
               </div>

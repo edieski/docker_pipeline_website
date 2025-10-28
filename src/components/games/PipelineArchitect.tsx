@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { useGameStore } from '../../store/gameStore'
@@ -11,9 +11,11 @@ interface PipelineJob {
   id: string
   name: string
   type: 'job'
+  description: string
   yaml: string
   dependencies: string[]
   position: { x: number; y: number }
+  configured: boolean
 }
 
 interface JobNodeProps {
@@ -54,25 +56,34 @@ const JobNode: React.FC<JobNodeProps> = ({ job, onConfigure, onConnect }) => {
         position: 'absolute',
         left: job.position.x,
         top: job.position.y,
-        width: '120px',
-        height: '80px'
+        width: '140px',
+        height: '100px'
       }}
     >
-      <div className="bg-white border-2 border-blue-500 rounded-lg p-3 cursor-pointer hover:shadow-lg transition-shadow">
-        <div className="text-sm font-semibold text-center text-gray-800 mb-2">
+      <div className={`bg-white border-2 rounded-lg p-3 cursor-pointer hover:shadow-lg transition-all ${
+        job.configured ? 'border-green-500 bg-green-50' : 'border-blue-500'
+      }`}>
+        <div className="text-sm font-semibold text-center text-gray-800 mb-1">
           {job.name}
         </div>
-        <div className="text-xs text-gray-600 text-center">
-          {job.dependencies.length} deps
+        <div className="text-xs text-gray-600 text-center mb-2">
+          {job.description}
+        </div>
+        <div className="text-xs text-gray-500 text-center mb-2">
+          {job.dependencies.length} dependencies
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation()
             onConfigure(job)
           }}
-          className="w-full mt-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+          className={`w-full px-2 py-1 text-xs rounded transition-colors ${
+            job.configured 
+              ? 'bg-green-600 text-white hover:bg-green-700' 
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
         >
-          Configure
+          {job.configured ? '✓ Configured' : 'Configure'}
         </button>
       </div>
     </div>
@@ -105,11 +116,20 @@ const YAMLConfigModal: React.FC<YAMLConfigModalProps> = ({ job, onClose, onSave 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+      <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <h3 className="text-xl font-bold text-gray-800 mb-4">
           Configure {job.name} Job
         </h3>
         
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Job Description:
+          </label>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-600">
+            {job.description}
+          </div>
+        </div>
+
         <div className="mb-4">
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             YAML Configuration:
@@ -120,6 +140,30 @@ const YAMLConfigModal: React.FC<YAMLConfigModalProps> = ({ job, onClose, onSave 
             className="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm"
             placeholder="Enter YAML configuration..."
           />
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Required Elements:
+          </label>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="flex items-center">
+              <span className={`w-2 h-2 rounded-full mr-2 ${yaml.includes('name:') ? 'bg-green-500' : 'bg-gray-300'}`} />
+              Job name
+            </div>
+            <div className="flex items-center">
+              <span className={`w-2 h-2 rounded-full mr-2 ${yaml.includes('runs-on:') ? 'bg-green-500' : 'bg-gray-300'}`} />
+              Runner
+            </div>
+            <div className="flex items-center">
+              <span className={`w-2 h-2 rounded-full mr-2 ${yaml.includes('steps:') ? 'bg-green-500' : 'bg-gray-300'}`} />
+              Steps
+            </div>
+            <div className="flex items-center">
+              <span className={`w-2 h-2 rounded-full mr-2 ${yaml.includes('uses:') ? 'bg-green-500' : 'bg-gray-300'}`} />
+              Actions
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end gap-3">
@@ -150,6 +194,7 @@ const PipelineArchitect: React.FC = () => {
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
   const [configuringJob, setConfiguringJob] = useState<PipelineJob | null>(null)
+  const [showInstructions, setShowInstructions] = useState(true)
 
   const mission = missionsData.missions.find(m => m.id === 3)
   
@@ -159,18 +204,93 @@ const PipelineArchitect: React.FC = () => {
   }
 
   useEffect(() => {
-    // Initialize available jobs based on mission data
+    // Initialize available jobs with better descriptions
     const requiredJobs = mission.validation?.requiredJobs || []
     const yamlTemplate = mission.validation?.yamlTemplate as Record<string, string> || {}
     
-    const jobs = requiredJobs.map((jobName, index) => ({
-      id: `job-${jobName}`,
-      name: jobName,
-      type: 'job' as const,
-      yaml: yamlTemplate[jobName] || `name: ${jobName}\nruns-on: ubuntu-latest\nsteps:\n  - run: echo "Hello ${jobName}"`,
-      dependencies: [],
-      position: { x: 50 + (index * 150), y: 100 }
-    }))
+    const jobs: PipelineJob[] = [
+      {
+        id: 'job-test',
+        name: 'Test',
+        type: 'job',
+        description: 'Run automated tests to ensure code quality',
+        yaml: yamlTemplate.test || `name: Test
+runs-on: ubuntu-latest
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-python@v5
+  - run: pip install -r requirements.txt
+  - run: pytest`,
+        dependencies: [],
+        position: { x: 50, y: 100 },
+        configured: false
+      },
+      {
+        id: 'job-lint',
+        name: 'Lint',
+        type: 'job',
+        description: 'Check code style and catch potential issues',
+        yaml: yamlTemplate.lint || `name: Lint
+runs-on: ubuntu-latest
+steps:
+  - uses: actions/checkout@v4
+  - uses: actions/setup-python@v5
+  - run: pip install flake8
+  - run: flake8 .`,
+        dependencies: [],
+        position: { x: 200, y: 100 },
+        configured: false
+      },
+      {
+        id: 'job-build',
+        name: 'Build',
+        type: 'job',
+        description: 'Build Docker image from source code',
+        yaml: yamlTemplate.build || `name: Build
+needs: [test, lint]
+runs-on: ubuntu-latest
+steps:
+  - uses: actions/checkout@v4
+  - uses: docker/build-push-action@v6
+    with:
+      push: false
+      tags: myapp:${{ github.sha }}`,
+        dependencies: [],
+        position: { x: 350, y: 100 },
+        configured: false
+      },
+      {
+        id: 'job-push',
+        name: 'Push',
+        type: 'job',
+        description: 'Push Docker image to container registry',
+        yaml: yamlTemplate.push || `name: Push
+needs: build
+runs-on: ubuntu-latest
+steps:
+  - uses: docker/build-push-action@v6
+    with:
+      push: true
+      tags: myapp:${{ github.sha }}`,
+        dependencies: [],
+        position: { x: 500, y: 100 },
+        configured: false
+      },
+      {
+        id: 'job-deploy',
+        name: 'Deploy',
+        type: 'job',
+        description: 'Deploy application to staging environment',
+        yaml: yamlTemplate.deploy || `name: Deploy
+needs: push
+runs-on: ubuntu-latest
+steps:
+  - run: echo 'Deploying to staging'`,
+        dependencies: [],
+        position: { x: 650, y: 100 },
+        configured: false
+      }
+    ]
     
     setAvailableJobs(jobs)
     setPipelineJobs([])
@@ -205,7 +325,7 @@ const PipelineArchitect: React.FC = () => {
 
   const handleSaveJobConfig = (job: PipelineJob, yaml: string) => {
     setPipelineJobs(prev => prev.map(j => 
-      j.id === job.id ? { ...j, yaml } : j
+      j.id === job.id ? { ...j, yaml, configured: true } : j
     ))
   }
 
@@ -240,6 +360,7 @@ const PipelineArchitect: React.FC = () => {
       if (job.yaml.includes('runs-on: ubuntu-latest')) yamlScore += 10
       if (job.yaml.includes('uses: actions/checkout@v4')) yamlScore += 10
       if (job.yaml.includes('steps:')) yamlScore += 10
+      if (job.configured) yamlScore += 10
     })
     
     const totalScore = Math.min(100 - (missingJobs.length * 20) + dependencyScore + yamlScore, 100)
@@ -250,7 +371,8 @@ const PipelineArchitect: React.FC = () => {
       dependencyScore,
       yamlScore,
       allJobsPresent: missingJobs.length === 0,
-      properDependencies: dependencyScore >= 50
+      properDependencies: dependencyScore >= 50,
+      allConfigured: pipelineJobs.every(job => job.configured)
     }
   }
 
@@ -259,7 +381,7 @@ const PipelineArchitect: React.FC = () => {
     const timeSpent = Date.now() - startTime
     
     updateMissionProgress(3, {
-      completed: validation.allJobsPresent && validation.properDependencies,
+      completed: validation.allJobsPresent && validation.properDependencies && validation.allConfigured,
       timeSpent,
       hintsUsed,
       score: validation.score
@@ -267,7 +389,7 @@ const PipelineArchitect: React.FC = () => {
     
     setGameCompleted(true)
     
-    if (validation.allJobsPresent && validation.properDependencies) {
+    if (validation.allJobsPresent && validation.properDependencies && validation.allConfigured) {
       unlockNextMission()
     }
   }
@@ -291,11 +413,11 @@ const PipelineArchitect: React.FC = () => {
           className="game-container max-w-2xl w-full p-8 text-center"
         >
           <div className="text-6xl mb-6">
-            {validation.allJobsPresent && validation.properDependencies ? '🏗️' : '🔧'}
+            {validation.allJobsPresent && validation.properDependencies && validation.allConfigured ? '🏗️' : '🔧'}
           </div>
           
           <h1 className="text-3xl font-bold text-gray-800 mb-4">
-            {validation.allJobsPresent && validation.properDependencies ? 'Pipeline Complete!' : 'Good Progress!'}
+            {validation.allJobsPresent && validation.properDependencies && validation.allConfigured ? 'Pipeline Complete!' : 'Good Progress!'}
           </h1>
           
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
@@ -320,7 +442,7 @@ const PipelineArchitect: React.FC = () => {
             </div>
           </div>
           
-          {validation.allJobsPresent && validation.properDependencies ? (
+          {validation.allJobsPresent && validation.properDependencies && validation.allConfigured ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <p className="text-green-800">
                 🎯 Excellent! You've built a complete CI/CD pipeline with proper job dependencies and configuration.
@@ -329,7 +451,7 @@ const PipelineArchitect: React.FC = () => {
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
               <p className="text-yellow-800">
-                💡 Close! Make sure you have all required jobs: {mission.validation?.requiredJobs?.join(', ')} and proper dependencies between them.
+                💡 Make sure you have all required jobs: {mission.validation?.requiredJobs?.join(', ')} and proper dependencies between them.
               </p>
             </div>
           )}
@@ -348,7 +470,7 @@ const PipelineArchitect: React.FC = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen p-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="game-container p-6 mb-6">
             <div className="flex justify-between items-center">
@@ -367,13 +489,47 @@ const PipelineArchitect: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Game Area */}
+          {/* Instructions */}
+          {showInstructions && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="game-container p-6 mb-6"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">How to Build Your Pipeline</h2>
+                  <div className="grid md:grid-cols-3 gap-4 text-sm">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-blue-800 mb-2">1. Add Jobs</h3>
+                      <p className="text-blue-700">Click jobs from the left panel to add them to your pipeline</p>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-green-800 mb-2">2. Connect Dependencies</h3>
+                      <p className="text-green-700">Drag jobs onto each other to create dependencies (test → build → deploy)</p>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-purple-800 mb-2">3. Configure YAML</h3>
+                      <p className="text-purple-700">Click "Configure" on each job to set up the YAML configuration</p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowInstructions(false)}
+                  className="text-gray-500 hover:text-gray-700 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left Side - Available Jobs */}
             <div className="space-y-6">
-              {/* Available Jobs */}
               <div className="game-container p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Available Jobs</h2>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   {availableJobs.map((job) => (
                     <div
                       key={job.id}
@@ -381,19 +537,25 @@ const PipelineArchitect: React.FC = () => {
                       onClick={() => handleJobDrop(job)}
                     >
                       <div className="text-sm font-semibold text-gray-800">{job.name}</div>
-                      <div className="text-xs text-gray-600">Click to add to pipeline</div>
+                      <div className="text-xs text-gray-600">{job.description}</div>
+                      <div className="text-xs text-gray-500 mt-1">Click to add to pipeline</div>
                     </div>
                   ))}
                 </div>
               </div>
+            </div>
 
-              {/* Pipeline Canvas */}
+            {/* Right Side - Pipeline Canvas */}
+            <div className="space-y-6">
               <div className="game-container p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Pipeline Canvas</h2>
-                <div className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg" style={{ height: '400px' }}>
+                <div className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg" style={{ height: '500px' }}>
                   {pipelineJobs.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
-                      Drag jobs here to build your pipeline
+                      <div className="text-center">
+                        <div className="text-4xl mb-4">🏗️</div>
+                        <p>Add jobs from the left panel to build your pipeline</p>
+                      </div>
                     </div>
                   ) : (
                     pipelineJobs.map((job) => (
@@ -407,7 +569,10 @@ const PipelineArchitect: React.FC = () => {
                   )}
                 </div>
                 
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex justify-between">
+                  <div className="text-sm text-gray-600">
+                    Jobs: {pipelineJobs.length} | Configured: {pipelineJobs.filter(j => j.configured).length}
+                  </div>
                   <button
                     onClick={handleSubmit}
                     className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -417,15 +582,15 @@ const PipelineArchitect: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Concept Card */}
-            <div>
-              <ConceptCard
-                teaching={mission.teaching}
-                difficulty={player.difficulty}
-                onHintUsed={handleHintUsed}
-              />
-            </div>
+          {/* Concept Card */}
+          <div className="mt-8">
+            <ConceptCard
+              teaching={mission.teaching}
+              difficulty={player.difficulty}
+              onHintUsed={handleHintUsed}
+            />
           </div>
 
           {/* Pipeline Requirements */}
