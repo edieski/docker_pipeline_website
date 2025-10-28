@@ -1,0 +1,363 @@
+{
+  "missions": [
+    {
+      "id": 1,
+      "title": "Dockerfile Jigsaw",
+      "description": "Build a valid Dockerfile by ordering the directive blocks correctly",
+      "intro": {
+        "what": "Docker is software that packages your code + everything it needs to run into a 'container' - like a sealed lunchbox",
+        "why": "Stops 'it works on my machine' problems - everyone runs the same exact environment",
+        "where": "A file called `Dockerfile` in your project root (next to your Python code)",
+        "how": "Write a Dockerfile → run `docker build` → get an image → run `docker run` → app starts identically on any computer"
+      },
+      "difficulty": {
+        "beginner": { "hints": 5, "blocks": 8 },
+        "intermediate": { "hints": 3, "blocks": 10 },
+        "advanced": { "hints": 1, "blocks": 12 }
+      },
+      "teaching": {
+        "tldr": "Dockerfiles define how to build container images - they're like recipes for your app",
+        "explainAgain": "Think of it like a recipe: first you get ingredients (FROM), then set up workspace (WORKDIR), copy files (COPY), install dependencies (RUN), and start cooking (CMD)",
+        "example": "FROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install -r requirements.txt\nCOPY . .\nCMD [\"python\", \"app.py\"]",
+        "exercise": "Try reordering these instructions to optimize build speed and image size",
+        "cheatSheet": "Common directives: FROM (base image), WORKDIR (working directory), COPY (copy files), RUN (execute commands), EXPOSE (port), CMD (start command)"
+      },
+      "realWorld": {
+        "scenarios": [
+          {
+            "situation": "Your teammate says 'it works on my machine' but fails in staging",
+            "solution": "Dockerfiles ensure everyone runs identical environments",
+            "dailyUse": "Morning standup: you commit a Dockerfile so QA tests the exact same Python version you dev with"
+          },
+          {
+            "situation": "You need to onboard a new developer to a FastAPI project",
+            "solution": "They run 'docker build' and have a working environment in 2 minutes",
+            "dailyUse": "No more 'install Python 3.12, pip install this, oh wait you need libpq-dev...'"
+          }
+        ]
+      },
+      "validation": {
+        "requiredOrder": ["FROM", "WORKDIR", "COPY requirements.txt", "RUN pip install", "COPY .", "CMD"],
+        "blocks": [
+          "FROM python:3.12-slim",
+          "WORKDIR /app",
+          "COPY requirements.txt .",
+          "RUN pip install --no-cache-dir -r requirements.txt",
+          "COPY . .",
+          "EXPOSE 8000",
+          "CMD [\"python\", \"app.py\"]",
+          "RUN apt-get update",
+          "RUN apt-get install -y curl",
+          "ENV PYTHONPATH=/app",
+          "USER app",
+          "HEALTHCHECK CMD curl -f http://localhost:8000/health"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Cache Crash",
+      "description": "Optimize your Dockerfile for faster builds and smaller images",
+      "intro": {
+        "what": "Each Dockerfile instruction creates a 'layer' - Docker reuses unchanged layers to speed up builds",
+        "why": "Bad layer order = rebuild everything every time = slow dev & expensive CI bills",
+        "where": "In your Dockerfile instruction order and `.dockerignore` file",
+        "how": "Put stuff that changes rarely (dependencies) before stuff that changes often (your code)"
+      },
+      "difficulty": {
+        "beginner": { "hints": 5, "targetSize": 400, "targetTime": 30 },
+        "intermediate": { "hints": 3, "targetSize": 300, "targetTime": 25 },
+        "advanced": { "hints": 1, "targetSize": 200, "targetTime": 20 }
+      },
+      "teaching": {
+        "tldr": "Docker layers are cached - optimize order to maximize cache hits and minimize rebuilds",
+        "explainAgain": "Like stacking boxes: put heavy, stable boxes (dependencies) at the bottom, light changing boxes (your code) on top",
+        "example": "Copy requirements.txt first, install dependencies, THEN copy your code. This way code changes don't invalidate dependency cache",
+        "exercise": "Reorder instructions and toggle optimization flags to hit size and time targets",
+        "cheatSheet": "Optimization tips: Use slim base images, copy dependencies before code, use --no-cache-dir, combine RUN commands, use .dockerignore"
+      },
+      "realWorld": {
+        "scenarios": [
+          {
+            "situation": "You change one line of code and rebuild takes 5 minutes",
+            "solution": "Layers weren't optimized - dependencies rebuild every time",
+            "dailyUse": "Fix layer order: COPY requirements.txt → RUN pip install → COPY . . Now code changes are instant rebuilds"
+          },
+          {
+            "situation": "CI bill is $200/month",
+            "solution": "Fixing cache strategy drops it to $40",
+            "dailyUse": "Optimized Dockerfiles = faster builds = less CI minutes = lower bills"
+          }
+        ]
+      },
+      "validation": {
+        "instructions": [
+          "FROM python:3.12-slim",
+          "WORKDIR /app",
+          "COPY requirements.txt .",
+          "RUN pip install --no-cache-dir -r requirements.txt",
+          "COPY . .",
+          "RUN python -m compileall .",
+          "EXPOSE 8000",
+          "CMD [\"python\", \"app.py\"]"
+        ],
+        "optimizations": [
+          "--no-cache-dir",
+          "--no-install-recommends",
+          "multi-stage build",
+          ".dockerignore"
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "title": "Pipeline Architect",
+      "description": "Design a CI/CD pipeline by connecting job nodes and configuring YAML",
+      "intro": {
+        "what": "CI/CD is Continuous Integration/Deployment - robots that test & deploy your code automatically when you push to GitHub",
+        "why": "Catches bugs before production, ensures code is always deployable, automates boring tasks",
+        "where": "`.github/workflows/` folder (GitHub Actions), `.gitlab-ci.yml` (GitLab), or cloud platforms",
+        "how": "Push code → pipeline runs tests → builds Docker image → deploys to staging → you merge to prod"
+      },
+      "difficulty": {
+        "beginner": { "hints": 5, "nodes": 4 },
+        "intermediate": { "hints": 3, "nodes": 5 },
+        "advanced": { "hints": 1, "nodes": 6 }
+      },
+      "teaching": {
+        "tldr": "CI/CD pipelines automate testing, building, and deploying your code",
+        "explainAgain": "Like an assembly line: code goes in → tests run → if tests pass → build image → deploy to staging → manual approval → deploy to prod",
+        "example": "GitHub Actions workflow: on push → checkout code → setup Python → install deps → run tests → build Docker → push to registry",
+        "exercise": "Connect job nodes in the right order and configure each with proper YAML",
+        "cheatSheet": "Pipeline stages: Test → Lint → Build → Push → Deploy. Use artifacts to pass data between jobs, secrets for sensitive data"
+      },
+      "realWorld": {
+        "scenarios": [
+          {
+            "situation": "You push code at 5pm",
+            "solution": "Pipeline auto-runs tests, builds Docker image, deploys to staging",
+            "dailyUse": "Wake up next day to see your feature already tested and deployed to staging for PM review"
+          },
+          {
+            "situation": "Someone breaks main branch",
+            "solution": "Pipeline catches it before customers see it",
+            "dailyUse": "Red X in GitHub → click to see which test failed → fix → push → green checkmark"
+          }
+        ]
+      },
+      "validation": {
+        "requiredJobs": ["test", "lint", "build", "push", "deploy"],
+        "yamlTemplate": {
+          "test": "name: Test\nruns-on: ubuntu-latest\nsteps:\n  - uses: actions/checkout@v4\n  - uses: actions/setup-python@v5\n  - run: pip install -r requirements.txt\n  - run: pytest",
+          "lint": "name: Lint\nruns-on: ubuntu-latest\nsteps:\n  - uses: actions/checkout@v4\n  - uses: actions/setup-python@v5\n  - run: pip install flake8\n  - run: flake8 .",
+          "build": "name: Build\nneeds: [test, lint]\nruns-on: ubuntu-latest\nsteps:\n  - uses: actions/checkout@v4\n  - uses: docker/build-push-action@v6\n    with:\n      push: false\n      tags: myapp:${{ github.sha }}",
+          "push": "name: Push\nneeds: build\nruns-on: ubuntu-latest\nsteps:\n  - uses: docker/build-push-action@v6\n    with:\n      push: true\n      tags: myapp:${{ github.sha }}",
+          "deploy": "name: Deploy\nneeds: push\nruns-on: ubuntu-latest\nsteps:\n  - run: echo 'Deploying to staging'"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Log Detective",
+      "description": "Debug a failing CI pipeline by analyzing logs and identifying errors",
+      "intro": {
+        "what": "CI logs are text output showing everything your pipeline did - tests, builds, errors",
+        "why": "When builds fail, logs tell you exactly what broke and where",
+        "where": "GitHub Actions tab, GitLab CI/CD section, or your CI platform dashboard",
+        "how": "Pipeline fails → open logs → search for 'Error' or red lines → fix the issue → push again"
+      },
+      "difficulty": {
+        "beginner": { "hints": 5, "errors": 3 },
+        "intermediate": { "hints": 3, "errors": 4 },
+        "advanced": { "hints": 1, "errors": 5 }
+      },
+      "teaching": {
+        "tldr": "CI logs are your debugging lifeline - they show exactly what went wrong and where",
+        "explainAgain": "Like a detective story: follow the clues (error messages) to find the culprit (buggy code)",
+        "example": "ModuleNotFoundError: No module named 'requests' → check requirements.txt → add missing dependency → push fix",
+        "exercise": "Read through simulated CI logs and identify all the errors causing the pipeline to fail",
+        "cheatSheet": "Common CI errors: ModuleNotFoundError (missing deps), FileNotFoundError (wrong paths), syntax errors, secret not found, wrong Python version"
+      },
+      "realWorld": {
+        "scenarios": [
+          {
+            "situation": "Production deploy fails at 2am",
+            "solution": "You SSH nowhere, just read GitHub Actions logs",
+            "dailyUse": "Open phone → GitHub app → Actions tab → see red X → click logs → find error → fix → push → back to sleep"
+          },
+          {
+            "situation": "New junior dev asks 'why is pytest failing in CI but not locally?'",
+            "solution": "You show them the log's Python version mismatch",
+            "dailyUse": "CI uses Python 3.11, local uses 3.12 → update CI to match local → tests pass"
+          }
+        ]
+      },
+      "validation": {
+        "logLines": [
+          "::group::Run pytest",
+          "============================= test session starts ==============================",
+          "platform linux -- Python 3.11.0, pytest-7.4.0, pluggy-1.0.0",
+          "rootdir: /home/runner/work/myapp/myapp",
+          "collected 15 items",
+          "",
+          "test_app.py::test_health_check PASSED [  6%]",
+          "test_app.py::test_get_users FAILED [ 12%]",
+          "",
+          "=================================== FAILURES ====================================",
+          "________________________ test_get_users _________________________",
+          "",
+          "    def test_get_users():",
+          ">       response = requests.get('http://localhost:8000/users')",
+          "E       ModuleNotFoundError: No module named 'requests'",
+          "",
+          "test_app.py:5: ModuleNotFoundError",
+          "============================== short test summary info ==============================",
+          "FAILED test_app.py::test_get_users - ModuleNotFoundError: No module named 'requests'",
+          "============================== 1 failed, 14 passed in 2.34s ==============================",
+          "::endgroup::",
+          "",
+          "::group::Run docker build",
+          "Sending build context to Docker daemon  2.048kB",
+          "Step 1/6 : FROM python:3.12-slim",
+          " ---> abc123def456",
+          "Step 2/6 : WORKDIR /app",
+          " ---> Running in def456ghi789",
+          " ---> Removed intermediate container def456ghi789",
+          "Step 3/6 : COPY requirements.txt .",
+          " ---> Using cache",
+          "Step 4/6 : RUN pip install -r requirements.txt",
+          " ---> Running in ghi789jkl012",
+          "ERROR: Could not find a version that satisfies the requirement fastapi==99.9.9",
+          "ERROR: No matching distribution found for fastapi==99.9.9",
+          "The command '/bin/sh -c pip install -r requirements.txt' returned a non-zero code: 1",
+          "::endgroup::"
+        ],
+        "errors": [
+          "ModuleNotFoundError: No module named 'requests'",
+          "ERROR: Could not find a version that satisfies the requirement fastapi==99.9.9",
+          "FileNotFoundError: [Errno 2] No such file or directory: 'requirements.txt'"
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "Deploy or Die",
+      "description": "Configure deployment settings and successfully deploy to production",
+      "intro": {
+        "what": "Deployment is taking your built Docker image and running it on a server (cloud) where users can access it",
+        "why": "Need secrets (passwords), right environment (staging vs prod), version tags, rollback plans",
+        "where": "Cloud platforms: Azure, AWS, Render, Heroku, Docker Hub + orchestrators like Kubernetes",
+        "how": "Merge PR → pipeline builds image → tags it with version → pushes to registry → cloud platform pulls & runs it"
+      },
+      "difficulty": {
+        "beginner": { "hints": 5, "fields": 6 },
+        "intermediate": { "hints": 3, "fields": 8 },
+        "advanced": { "hints": 1, "fields": 10 }
+      },
+      "teaching": {
+        "tldr": "Deployment is the final step - getting your containerized app running in production",
+        "explainAgain": "Like moving into a new house: you need the right address (registry), keys (secrets), utilities (environment), and insurance (rollback plan)",
+        "example": "Docker Hub registry → tag image with version → push → cloud platform pulls image → runs with environment variables → app is live",
+        "exercise": "Fill in deployment configuration forms with correct values for registry, secrets, and environment settings",
+        "cheatSheet": "Deployment checklist: Registry URL, image tags, environment variables, secrets, health checks, rollback strategy"
+      },
+      "realWorld": {
+        "scenarios": [
+          {
+            "situation": "Feature complete → you merge PR",
+            "solution": "Pipeline auto-deploys to staging for PM review",
+            "dailyUse": "PM gets Slack notification with staging URL → tests feature → approves → you merge to main → auto-deploys to prod"
+          },
+          {
+            "situation": "Need to rollback bad deploy",
+            "solution": "You revert commit and pipeline redeploys last good version",
+            "dailyUse": "GitHub → revert commit → pipeline triggers → deploys previous working version → customers happy again"
+          }
+        ]
+      },
+      "validation": {
+        "requiredFields": [
+          "registry_url",
+          "image_tag",
+          "environment",
+          "database_url",
+          "api_key",
+          "deployment_strategy"
+        ],
+        "validValues": {
+          "registry_url": ["docker.io/myapp", "ghcr.io/myorg/myapp", "myregistry.com/myapp"],
+          "image_tag": ["latest", "v1.0.0", "main-abc123", "staging-def456"],
+          "environment": ["production", "staging", "development"],
+          "deployment_strategy": ["rolling", "blue-green", "canary"]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Outage Simulator",
+      "description": "Respond to a production incident by choosing the right recovery strategy",
+      "intro": {
+        "what": "Incident response is what you do when production breaks - diagnose, fix, and restore service FAST",
+        "why": "Bugs slip through, dependencies fail, servers crash - it's normal, response speed matters",
+        "where": "Monitoring dashboards (Grafana, Datadog), alert systems (PagerDuty), and your CI pipeline",
+        "how": "Get paged → check metrics → decide: rollback (safe, slow), hotfix (risky, fast), or redeploy (test fix first)"
+      },
+      "difficulty": {
+        "beginner": { "hints": 5, "timeLimit": 300 },
+        "intermediate": { "hints": 3, "timeLimit": 240 },
+        "advanced": { "hints": 1, "timeLimit": 180 }
+      },
+      "teaching": {
+        "tldr": "When production breaks, you need a systematic approach to restore service quickly",
+        "explainAgain": "Like emergency response: assess situation → choose strategy → execute → verify fix → learn from incident",
+        "example": "Service down → check logs → see memory leak → choose rollback (safe) → execute → service restored → post-incident review",
+        "exercise": "Monitor service health and choose the right response strategy based on the situation",
+        "cheatSheet": "Response strategies: Rollback (revert to last known good), Hotfix (quick patch), Redeploy (tested fix), Scale (add resources)"
+      },
+      "realWorld": {
+        "scenarios": [
+          {
+            "situation": "Pager goes off → service down",
+            "solution": "You choose rollback vs hotfix based on severity",
+            "dailyUse": "Check Slack → 'Service down' → open monitoring → see error spike → rollback to previous version → service restored in 5 minutes"
+          },
+          {
+            "situation": "Customer reports 'app is slow'",
+            "solution": "You check metrics, see memory leak, deploy fix",
+            "dailyUse": "Check Grafana → CPU 100% → check logs → memory leak in new feature → hotfix → deploy → monitor → resolved"
+          }
+        ]
+      },
+      "validation": {
+        "strategies": [
+          {
+            "name": "Rollback",
+            "description": "Revert to the last known good version",
+            "timeToExecute": 5,
+            "risk": "low",
+            "whenToUse": "When you know the current version is broken"
+          },
+          {
+            "name": "Hotfix",
+            "description": "Deploy a quick patch without full testing",
+            "timeToExecute": 2,
+            "risk": "high",
+            "whenToUse": "When you need immediate fix and understand the issue"
+          },
+          {
+            "name": "Redeploy",
+            "description": "Deploy a tested fix through normal pipeline",
+            "timeToExecute": 8,
+            "risk": "medium",
+            "whenToUse": "When you have a tested fix ready"
+          }
+        ],
+        "healthThresholds": {
+          "critical": 20,
+          "warning": 50,
+          "healthy": 80
+        }
+      }
+    }
+  ]
+}
