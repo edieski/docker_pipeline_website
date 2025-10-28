@@ -1,0 +1,73 @@
+{
+  "hash": "a0bcab3e",
+  "configHash": "dc316f06",
+  "lockfileHash": "b57119bf",
+  "browserHash": "141117a8",
+  "optimized": {
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "3972a28f",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "febb1aa4",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "ec029df0",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.js",
+      "file": "react-router-dom.js",
+      "fileHash": "1ae51877",
+      "needsInterop": false
+    },
+    "zustand": {
+      "src": "../../node_modules/zustand/esm/index.mjs",
+      "file": "zustand.js",
+      "fileHash": "c0a46cfa",
+      "needsInterop": false
+    },
+    "zustand/middleware": {
+      "src": "../../node_modules/zustand/esm/middleware.mjs",
+      "file": "zustand_middleware.js",
+      "fileHash": "22e30540",
+      "needsInterop": false
+    },
+    "framer-motion": {
+      "src": "../../node_modules/framer-motion/dist/es/index.mjs",
+      "file": "framer-motion.js",
+      "fileHash": "79cd06b7",
+      "needsInterop": false
+    },
+    "react-dnd": {
+      "src": "../../node_modules/react-dnd/dist/index.js",
+      "file": "react-dnd.js",
+      "fileHash": "a9cb8e85",
+      "needsInterop": false
+    },
+    "react-dnd-html5-backend": {
+      "src": "../../node_modules/react-dnd-html5-backend/dist/index.js",
+      "file": "react-dnd-html5-backend.js",
+      "fileHash": "560427b9",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-ZIYUGMGG": {
+      "file": "chunk-ZIYUGMGG.js"
+    },
+    "chunk-65KY755N": {
+      "file": "chunk-65KY755N.js"
+    },
+    "chunk-V4OQ3NZ2": {
+      "file": "chunk-V4OQ3NZ2.js"
+    }
+  }
+}
