@@ -12,80 +12,33 @@ interface DeploymentConfig {
   database_url: string
   api_key: string
   deployment_strategy: string
-  health_check_url: string
   replicas: number
-  memory_limit: string
-  cpu_limit: string
 }
 
-interface ConfigFieldProps {
-  field: keyof DeploymentConfig
-  label: string
-  type: 'text' | 'select' | 'number'
-  value: string
-  onChange: (value: string) => void
-  options?: string[]
-  placeholder?: string
-  required?: boolean
-  error?: string
+interface ConfigStepProps {
+  title: string
+  description: string
+  children: React.ReactNode
+  completed: boolean
 }
 
-const ConfigField: React.FC<ConfigFieldProps> = ({
-  label,
-  type,
-  value,
-  onChange,
-  options = [],
-  placeholder,
-  required = false,
-  error
-}) => {
+const ConfigStep: React.FC<ConfigStepProps> = ({ title, description, children, completed }) => {
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-semibold text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      
-      {type === 'select' ? (
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-            error ? 'border-red-500' : 'border-gray-300'
-          }`}
-        >
-          <option value="">Select {label}</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      ) : type === 'number' ? (
-        <input
-          type="number"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-            error ? 'border-red-500' : 'border-gray-300'
-          }`}
-        />
-      ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-            error ? 'border-red-500' : 'border-gray-300'
-          }`}
-        />
-      )}
-      
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
-      )}
+    <div className={`p-6 rounded-lg border-2 transition-all ${
+      completed ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-white'
+    }`}>
+      <div className="flex items-center mb-4">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
+          completed ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'
+        }`}>
+          {completed ? '✓' : '1'}
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-800">{title}</h3>
+          <p className="text-sm text-gray-600">{description}</p>
+        </div>
+      </div>
+      {children}
     </div>
   )
 }
@@ -100,16 +53,14 @@ const DeployOrDie: React.FC = () => {
     database_url: '',
     api_key: '',
     deployment_strategy: '',
-    health_check_url: '',
-    replicas: 1,
-    memory_limit: '',
-    cpu_limit: ''
+    replicas: 1
   })
   const [gameCompleted, setGameCompleted] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'success' | 'failed'>('idle')
+  const [currentStep, setCurrentStep] = useState(1)
 
   const mission = missionsData.missions.find(m => m.id === 5)
   
@@ -240,6 +191,19 @@ const DeployOrDie: React.FC = () => {
     setDeploymentStatus('idle')
   }
 
+  const isStepCompleted = (step: number) => {
+    switch (step) {
+      case 1:
+        return config.registry_url && config.image_tag && config.environment
+      case 2:
+        return config.database_url && config.api_key
+      case 3:
+        return config.deployment_strategy && config.replicas > 0
+      default:
+        return false
+    }
+  }
+
   if (gameCompleted) {
     const validation = validateDeployment()
     
@@ -316,176 +280,230 @@ const DeployOrDie: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Configuration Form */}
-          <div className="space-y-6">
-            <div className="game-container p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">Deployment Configuration</h2>
-              
-              <div className="grid grid-cols-1 gap-6">
-                <ConfigField
-                  field="registry_url"
-                  label="Registry URL"
+        {/* Step-by-Step Configuration */}
+        <div className="space-y-6">
+          {/* Step 1: Basic Configuration */}
+          <ConfigStep
+            title="Basic Configuration"
+            description="Set up your container registry and environment"
+            completed={isStepCompleted(1)}
+          >
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Registry URL <span className="text-red-500">*</span>
+                </label>
+                <input
                   type="text"
                   value={config.registry_url}
-                  onChange={(value) => handleConfigChange('registry_url', value)}
+                  onChange={(e) => handleConfigChange('registry_url', e.target.value)}
                   placeholder="docker.io/myorg/myapp"
-                  required
-                  error={errors.registry_url}
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.registry_url ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
-                
-                <ConfigField
-                  field="image_tag"
-                  label="Image Tag"
-                  type="select"
-                  value={config.image_tag}
-                  onChange={(value) => handleConfigChange('image_tag', value)}
-                  options={validValues.image_tag || []}
-                  required
-                  error={errors.image_tag}
-                />
-                
-                <ConfigField
-                  field="environment"
-                  label="Environment"
-                  type="select"
-                  value={config.environment}
-                  onChange={(value) => handleConfigChange('environment', value)}
-                  options={validValues.environment || []}
-                  required
-                  error={errors.environment}
-                />
-                
-                <ConfigField
-                  field="deployment_strategy"
-                  label="Deployment Strategy"
-                  type="select"
-                  value={config.deployment_strategy}
-                  onChange={(value) => handleConfigChange('deployment_strategy', value)}
-                  options={validValues.deployment_strategy || []}
-                  required
-                  error={errors.deployment_strategy}
-                />
-                
-                <ConfigField
-                  field="database_url"
-                  label="Database URL"
-                  type="text"
-                  value={config.database_url}
-                  onChange={(value) => handleConfigChange('database_url', value)}
-                  placeholder="postgresql://user:pass@host:5432/db"
-                  required
-                  error={errors.database_url}
-                />
-                
-                <ConfigField
-                  field="api_key"
-                  label="API Key"
-                  type="text"
-                  value={config.api_key}
-                  onChange={(value) => handleConfigChange('api_key', value)}
-                  placeholder="sk-1234567890abcdef"
-                  required
-                  error={errors.api_key}
-                />
-                
-                <ConfigField
-                  field="health_check_url"
-                  label="Health Check URL"
-                  type="text"
-                  value={config.health_check_url}
-                  onChange={(value) => handleConfigChange('health_check_url', value)}
-                  placeholder="/health"
-                />
-                
-                <ConfigField
-                  field="replicas"
-                  label="Replicas"
-                  type="number"
-                  value={config.replicas.toString()}
-                  onChange={(value) => handleConfigChange('replicas', value)}
-                  error={errors.replicas}
-                />
-                
-                <ConfigField
-                  field="memory_limit"
-                  label="Memory Limit"
-                  type="text"
-                  value={config.memory_limit}
-                  onChange={(value) => handleConfigChange('memory_limit', value)}
-                  placeholder="512Mi"
-                />
-                
-                <ConfigField
-                  field="cpu_limit"
-                  label="CPU Limit"
-                  type="text"
-                  value={config.cpu_limit}
-                  onChange={(value) => handleConfigChange('cpu_limit', value)}
-                  placeholder="500m"
-                />
+                {errors.registry_url && (
+                  <p className="text-sm text-red-600 mt-1">{errors.registry_url}</p>
+                )}
               </div>
               
-              <div className="mt-8 flex justify-end">
-                <button
-                  onClick={handleDeploy}
-                  disabled={deploymentStatus === 'deploying'}
-                  className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Image Tag <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={config.image_tag}
+                  onChange={(e) => handleConfigChange('image_tag', e.target.value)}
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.image_tag ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 >
-                  {deploymentStatus === 'deploying' ? 'Deploying...' : 'Deploy to Production'}
-                </button>
+                  <option value="">Select tag</option>
+                  {(validValues.image_tag || []).map((tag) => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
+                {errors.image_tag && (
+                  <p className="text-sm text-red-600 mt-1">{errors.image_tag}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Environment <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={config.environment}
+                  onChange={(e) => handleConfigChange('environment', e.target.value)}
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.environment ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">Select environment</option>
+                  {(validValues.environment || []).map((env) => (
+                    <option key={env} value={env}>{env}</option>
+                  ))}
+                </select>
+                {errors.environment && (
+                  <p className="text-sm text-red-600 mt-1">{errors.environment}</p>
+                )}
               </div>
             </div>
+          </ConfigStep>
 
-            {/* Deployment Status */}
-            {deploymentStatus !== 'idle' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="game-container p-6"
-              >
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Deployment Status</h3>
-                
-                {deploymentStatus === 'deploying' && (
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Deploying to production...</p>
-                  </div>
+          {/* Step 2: Secrets & Database */}
+          <ConfigStep
+            title="Secrets & Database"
+            description="Configure sensitive data and database connection"
+            completed={isStepCompleted(2)}
+          >
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Database URL <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={config.database_url}
+                  onChange={(e) => handleConfigChange('database_url', e.target.value)}
+                  placeholder="postgresql://user:pass@host:5432/db"
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.database_url ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                {errors.database_url && (
+                  <p className="text-sm text-red-600 mt-1">{errors.database_url}</p>
                 )}
-                
-                {deploymentStatus === 'success' && (
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">✅</div>
-                    <p className="text-green-600 font-semibold">Deployment Successful!</p>
-                    <p className="text-gray-600">Your application is now live in production.</p>
-                  </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  API Key <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={config.api_key}
+                  onChange={(e) => handleConfigChange('api_key', e.target.value)}
+                  placeholder="sk-1234567890abcdef"
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.api_key ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                {errors.api_key && (
+                  <p className="text-sm text-red-600 mt-1">{errors.api_key}</p>
                 )}
-                
-                {deploymentStatus === 'failed' && (
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">❌</div>
-                    <p className="text-red-600 font-semibold">Deployment Failed</p>
-                    <p className="text-gray-600 mb-4">Check your configuration and try again.</p>
-                    <button
-                      onClick={handleRetry}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Retry Deployment
-                    </button>
-                  </div>
+              </div>
+            </div>
+          </ConfigStep>
+
+          {/* Step 3: Deployment Strategy */}
+          <ConfigStep
+            title="Deployment Strategy"
+            description="Choose how to deploy and scale your application"
+            completed={isStepCompleted(3)}
+          >
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Deployment Strategy <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={config.deployment_strategy}
+                  onChange={(e) => handleConfigChange('deployment_strategy', e.target.value)}
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.deployment_strategy ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">Select strategy</option>
+                  {(validValues.deployment_strategy || []).map((strategy) => (
+                    <option key={strategy} value={strategy}>{strategy}</option>
+                  ))}
+                </select>
+                {errors.deployment_strategy && (
+                  <p className="text-sm text-red-600 mt-1">{errors.deployment_strategy}</p>
                 )}
-              </motion.div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Replicas
+                </label>
+                <input
+                  type="number"
+                  value={config.replicas}
+                  onChange={(e) => handleConfigChange('replicas', e.target.value)}
+                  min="1"
+                  max="10"
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.replicas ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                {errors.replicas && (
+                  <p className="text-sm text-red-600 mt-1">{errors.replicas}</p>
+                )}
+              </div>
+            </div>
+          </ConfigStep>
+        </div>
+
+        {/* Deployment Status */}
+        {deploymentStatus !== 'idle' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="game-container p-6 mt-6"
+          >
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Deployment Status</h3>
+            
+            {deploymentStatus === 'deploying' && (
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Deploying to production...</p>
+              </div>
             )}
-          </div>
+            
+            {deploymentStatus === 'success' && (
+              <div className="text-center">
+                <div className="text-4xl mb-4">✅</div>
+                <p className="text-green-600 font-semibold">Deployment Successful!</p>
+                <p className="text-gray-600">Your application is now live in production.</p>
+              </div>
+            )}
+            
+            {deploymentStatus === 'failed' && (
+              <div className="text-center">
+                <div className="text-4xl mb-4">❌</div>
+                <p className="text-red-600 font-semibold">Deployment Failed</p>
+                <p className="text-gray-600 mb-4">Check your configuration and try again.</p>
+                <button
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Retry Deployment
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
 
-          {/* Concept Card */}
-          <div>
-            <ConceptCard
-              teaching={mission.teaching}
-              difficulty={player.difficulty}
-              onHintUsed={handleHintUsed}
-            />
-          </div>
+        {/* Deploy Button */}
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={handleDeploy}
+            disabled={deploymentStatus === 'deploying' || !isStepCompleted(3)}
+            className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {deploymentStatus === 'deploying' ? 'Deploying...' : 'Deploy to Production'}
+          </button>
+        </div>
+
+        {/* Concept Card */}
+        <div className="mt-8">
+          <ConceptCard
+            teaching={mission.teaching}
+            difficulty={player.difficulty}
+            onHintUsed={handleHintUsed}
+          />
         </div>
 
         {/* Deployment Checklist */}

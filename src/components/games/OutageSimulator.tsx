@@ -20,6 +20,7 @@ interface RecoveryStrategy {
   risk: 'low' | 'medium' | 'high'
   whenToUse: string
   effectiveness: number
+  explanation: string
 }
 
 interface Incident {
@@ -29,6 +30,7 @@ interface Incident {
   severity: 'critical' | 'warning' | 'info'
   timestamp: Date
   resolved: boolean
+  recommendedStrategy: string
 }
 
 const OutageSimulator: React.FC = () => {
@@ -49,6 +51,7 @@ const OutageSimulator: React.FC = () => {
   const [selectedStrategy, setSelectedStrategy] = useState<RecoveryStrategy | null>(null)
   const [strategyExecuting, setStrategyExecuting] = useState(false)
   const [gamePhase, setGamePhase] = useState<'monitoring' | 'incident' | 'response' | 'resolution'>('monitoring')
+  const [showInstructions, setShowInstructions] = useState(true)
 
   const mission = missionsData.missions.find(m => m.id === 6)
   
@@ -57,7 +60,45 @@ const OutageSimulator: React.FC = () => {
     return null
   }
 
-  const strategies = mission.validation?.strategies || []
+  const strategies: RecoveryStrategy[] = [
+    {
+      name: 'Rollback',
+      description: 'Revert to the last known good version',
+      timeToExecute: 5,
+      risk: 'low',
+      whenToUse: 'When you know the current version is broken',
+      effectiveness: 90,
+      explanation: 'Safest option - reverts to previous working state'
+    },
+    {
+      name: 'Hotfix',
+      description: 'Deploy a quick patch without full testing',
+      timeToExecute: 2,
+      risk: 'high',
+      whenToUse: 'When you need immediate fix and understand the issue',
+      effectiveness: 70,
+      explanation: 'Fastest option but risky - may introduce new issues'
+    },
+    {
+      name: 'Redeploy',
+      description: 'Deploy a tested fix through normal pipeline',
+      timeToExecute: 8,
+      risk: 'medium',
+      whenToUse: 'When you have a tested fix ready',
+      effectiveness: 85,
+      explanation: 'Balanced option - tested fix through normal process'
+    },
+    {
+      name: 'Scale Up',
+      description: 'Add more resources to handle increased load',
+      timeToExecute: 3,
+      risk: 'low',
+      whenToUse: 'When the issue is high load, not broken code',
+      effectiveness: 60,
+      explanation: 'Good for load issues but doesn\'t fix root cause'
+    }
+  ]
+
   const healthThresholds = mission.validation?.healthThresholds || { critical: 20, warning: 50, healthy: 80 }
 
   useEffect(() => {
@@ -88,22 +129,26 @@ const OutageSimulator: React.FC = () => {
       {
         title: 'High CPU Usage',
         description: 'CPU usage has spiked to 95%, causing slow response times',
-        severity: 'critical' as const
+        severity: 'critical' as const,
+        recommendedStrategy: 'Scale Up'
       },
       {
         title: 'Memory Leak Detected',
         description: 'Memory usage is increasing rapidly, service may crash soon',
-        severity: 'critical' as const
+        severity: 'critical' as const,
+        recommendedStrategy: 'Rollback'
       },
       {
         title: 'Database Connection Pool Exhausted',
         description: 'All database connections are in use, new requests are failing',
-        severity: 'critical' as const
+        severity: 'critical' as const,
+        recommendedStrategy: 'Scale Up'
       },
       {
         title: 'High Error Rate',
         description: 'Error rate has increased to 15%, affecting user experience',
-        severity: 'warning' as const
+        severity: 'warning' as const,
+        recommendedStrategy: 'Rollback'
       }
     ]
     
@@ -297,7 +342,7 @@ const OutageSimulator: React.FC = () => {
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
               <p className="text-yellow-800">
-                💡 Good effort! Remember: choose low-risk strategies for critical incidents, respond quickly, and monitor service health continuously.
+                💡 Remember: choose low-risk strategies for critical incidents, respond quickly, and monitor service health continuously.
               </p>
             </div>
           )}
@@ -317,7 +362,7 @@ const OutageSimulator: React.FC = () => {
 
   return (
     <div className="min-h-screen p-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="game-container p-6 mb-6">
           <div className="flex justify-between items-center">
@@ -338,8 +383,47 @@ const OutageSimulator: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Monitoring Dashboard */}
+        {/* Instructions */}
+        {showInstructions && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="game-container p-6 mb-6"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Incident Response Process</h2>
+                <div className="grid md:grid-cols-4 gap-4 text-sm">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-blue-800 mb-2">1. Monitor</h3>
+                    <p className="text-blue-700">Watch service metrics for anomalies</p>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-red-800 mb-2">2. Detect</h3>
+                    <p className="text-red-700">Identify incidents and their severity</p>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-yellow-800 mb-2">3. Respond</h3>
+                    <p className="text-yellow-700">Choose appropriate recovery strategy</p>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-green-800 mb-2">4. Resolve</h3>
+                    <p className="text-green-700">Execute strategy and verify fix</p>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInstructions(false)}
+                className="text-gray-500 hover:text-gray-700 text-xl"
+              >
+                ×
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        <div className="grid lg:grid-cols-2 gap-8">
+          {/* Left Side - Monitoring Dashboard */}
           <div className="space-y-6">
             {/* Service Health */}
             <div className="game-container p-6">
@@ -384,7 +468,8 @@ const OutageSimulator: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-800 mb-4">Active Incidents</h2>
               {incidents.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">
-                  No active incidents
+                  <div className="text-4xl mb-2">✅</div>
+                  <p>No active incidents</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -406,6 +491,11 @@ const OutageSimulator: React.FC = () => {
                           <div className="text-xs text-gray-500 mt-1">
                             {incident.timestamp.toLocaleTimeString()}
                           </div>
+                          {!incident.resolved && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              Recommended: {incident.recommendedStrategy}
+                            </div>
+                          )}
                         </div>
                         <div className="text-2xl">
                           {incident.resolved ? '✅' : incident.severity === 'critical' ? '🚨' : '⚠️'}
@@ -416,7 +506,10 @@ const OutageSimulator: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
 
+          {/* Right Side - Response Actions */}
+          <div className="space-y-6">
             {/* Recovery Strategies */}
             {gamePhase === 'incident' && (
               <motion.div
@@ -429,11 +522,7 @@ const OutageSimulator: React.FC = () => {
                   {strategies.map((strategy, index) => (
                     <button
                       key={index}
-                      onClick={() => handleStrategySelect({
-                        ...strategy,
-                        risk: strategy.risk as 'low' | 'medium' | 'high',
-                        effectiveness: 80 // Default effectiveness
-                      })}
+                      onClick={() => handleStrategySelect(strategy)}
                       className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
                         strategy.risk === 'low'
                           ? 'border-green-300 bg-green-50 hover:bg-green-100'
@@ -445,8 +534,9 @@ const OutageSimulator: React.FC = () => {
                       <div className="font-semibold text-gray-800">{strategy.name}</div>
                       <div className="text-sm text-gray-600 mb-2">{strategy.description}</div>
                       <div className="text-xs text-gray-500">
-                        Time: {strategy.timeToExecute}min | Risk: {strategy.risk} | When: {strategy.whenToUse}
+                        Time: {strategy.timeToExecute}min | Risk: {strategy.risk} | Effectiveness: {strategy.effectiveness}%
                       </div>
+                      <div className="text-xs text-gray-600 mt-1">{strategy.explanation}</div>
                     </button>
                   ))}
                 </div>
@@ -479,15 +569,15 @@ const OutageSimulator: React.FC = () => {
               </motion.div>
             )}
           </div>
+        </div>
 
-          {/* Concept Card */}
-          <div>
-            <ConceptCard
-              teaching={mission.teaching}
-              difficulty={player.difficulty}
-              onHintUsed={handleHintUsed}
-            />
-          </div>
+        {/* Concept Card */}
+        <div className="mt-8">
+          <ConceptCard
+            teaching={mission.teaching}
+            difficulty={player.difficulty}
+            onHintUsed={handleHintUsed}
+          />
         </div>
 
         {/* Response Guidelines */}

@@ -114,7 +114,6 @@ const CacheCrash: React.FC = () => {
   const [appliedOptimizations, setAppliedOptimizations] = useState<string[]>([])
   const [buildTime, setBuildTime] = useState(45)
   const [imageSize, setImageSize] = useState(450)
-  const [showExplanation, setShowExplanation] = useState(false)
 
   const mission = missionsData.missions.find(m => m.id === 2)
   
@@ -312,7 +311,7 @@ const CacheCrash: React.FC = () => {
     const timeSpent = Date.now() - startTime
     
     updateMissionProgress(2, {
-      completed: validation.targetsMet && validation.correctCount === validation.total,
+      completed: validation.targetsMet && validation.correctOrder === validation.total,
       timeSpent,
       hintsUsed,
       score: validation.score
@@ -320,7 +319,7 @@ const CacheCrash: React.FC = () => {
     
     setGameCompleted(true)
     
-    if (validation.targetsMet && validation.correctCount === validation.total) {
+    if (validation.targetsMet && validation.correctOrder === validation.total) {
       unlockNextMission()
     }
   }

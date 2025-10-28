@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { useGameStore } from '../../store/gameStore'
@@ -205,7 +205,6 @@ const PipelineArchitect: React.FC = () => {
 
   useEffect(() => {
     // Initialize available jobs with better descriptions
-    const requiredJobs = mission.validation?.requiredJobs || []
     const yamlTemplate = mission.validation?.yamlTemplate as Record<string, string> || {}
     
     const jobs: PipelineJob[] = [
@@ -254,7 +253,7 @@ steps:
   - uses: docker/build-push-action@v6
     with:
       push: false
-      tags: myapp:${{ github.sha }}`,
+      tags: myapp:\${{ github.sha }}`,
         dependencies: [],
         position: { x: 350, y: 100 },
         configured: false
@@ -271,7 +270,7 @@ steps:
   - uses: docker/build-push-action@v6
     with:
       push: true
-      tags: myapp:${{ github.sha }}`,
+      tags: myapp:\${{ github.sha }}`,
         dependencies: [],
         position: { x: 500, y: 100 },
         configured: false
