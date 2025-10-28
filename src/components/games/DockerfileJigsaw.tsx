@@ -13,27 +13,18 @@ interface DockerBlock {
   type: 'directive'
 }
 
-interface DropZoneProps {
+interface DropSlotProps {
+  index: number
+  block: DockerBlock | null
   onDrop: (item: DockerBlock, index: number) => void
-  blocks: (DockerBlock | null)[]
+  onRemove: (index: number) => void
 }
 
-const DropZone: React.FC<DropZoneProps> = ({ onDrop, blocks }) => {
+const DropSlot: React.FC<DropSlotProps> = ({ index, block, onDrop, onRemove }) => {
   const [{ isOver }, drop] = useDrop({
     accept: 'docker-block',
-    drop: (item: DockerBlock, monitor) => {
-      const clientOffset = monitor.getClientOffset()
-      if (!clientOffset) return
-      
-      // Calculate which slot was dropped on based on mouse position
-      const rect = (monitor.getDropResult() as any)?.getBoundingClientRect?.()
-      if (!rect) return
-      
-      const x = clientOffset.x - rect.left
-      const slotWidth = rect.width / blocks.length
-      const index = Math.floor(x / slotWidth)
-      
-      onDrop(item, Math.min(index, blocks.length - 1))
+    drop: (item: DockerBlock) => {
+      onDrop(item, index)
     },
     collect: (monitor) => ({
       isOver: monitor.isOver()
@@ -43,35 +34,41 @@ const DropZone: React.FC<DropZoneProps> = ({ onDrop, blocks }) => {
   return (
     <div
       ref={drop}
-      className={`drop-zone ${isOver ? 'drag-over' : ''}`}
-      style={{ minHeight: '400px' }}
+      className={`min-h-16 border-2 border-dashed rounded-lg flex items-center justify-center p-3 transition-all duration-200 ${
+        isOver 
+          ? 'border-blue-500 bg-blue-50 scale-105' 
+          : block 
+            ? 'border-green-500 bg-green-50' 
+            : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+      }`}
     >
-      <div className="grid grid-cols-1 gap-2">
-        {blocks.map((block, index) => (
-          <div
-            key={index}
-            className="min-h-12 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center p-2"
-          >
-            {block ? (
-              <div className="docker-block w-full text-center">
-                {block.content}
-              </div>
-            ) : (
-              <span className="text-gray-400 text-sm">Drop Docker directive here</span>
-            )}
+      {block ? (
+        <div className="flex items-center justify-between w-full">
+          <div className="text-sm font-mono text-gray-800 flex-1 text-center">
+            {block.content}
           </div>
-        ))}
-      </div>
+          <button
+            onClick={() => onRemove(index)}
+            className="ml-2 text-red-500 hover:text-red-700 text-lg font-bold"
+            title="Remove this instruction"
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <span className="text-gray-400 text-sm">
+          Drop instruction {index + 1} here
+        </span>
+      )}
     </div>
   )
 }
 
 interface DraggableBlockProps {
   block: DockerBlock
-  onRemove?: () => void
 }
 
-const DraggableBlock: React.FC<DraggableBlockProps> = ({ block, onRemove }) => {
+const DraggableBlock: React.FC<DraggableBlockProps> = ({ block }) => {
   const [{ isDragging }, drag] = useDrag({
     type: 'docker-block',
     item: block,
@@ -83,10 +80,13 @@ const DraggableBlock: React.FC<DraggableBlockProps> = ({ block, onRemove }) => {
   return (
     <div
       ref={drag}
-      className={`docker-block ${isDragging ? 'opacity-50' : ''} cursor-grab`}
-      onClick={onRemove}
+      className={`p-3 bg-white border-2 border-blue-500 rounded-lg cursor-grab hover:shadow-md transition-all duration-200 ${
+        isDragging ? 'opacity-50 scale-95' : 'hover:scale-105'
+      }`}
     >
-      {block.content}
+      <div className="text-sm font-mono text-gray-800 text-center">
+        {block.content}
+      </div>
     </div>
   )
 }
@@ -123,20 +123,34 @@ const DockerfileJigsaw: React.FC = () => {
     // Initialize empty drop zones
     const requiredOrder = mission.validation?.requiredOrder || []
     setDroppedBlocks(new Array(requiredOrder.length).fill(null))
-    
-    // Game started
   }, [mission, player])
 
   const handleDrop = (item: DockerBlock, index: number) => {
+    // Remove from available blocks
+    setAvailableBlocks(prev => prev.filter(block => block.id !== item.id))
+    
+    // Add to dropped blocks
     setDroppedBlocks(prev => {
       const newBlocks = [...prev]
       newBlocks[index] = item
       return newBlocks
     })
-    
-    setAvailableBlocks(prev => prev.filter(block => block.id !== item.id))
   }
 
+  const handleRemove = (index: number) => {
+    const blockToRemove = droppedBlocks[index]
+    if (!blockToRemove) return
+    
+    // Add back to available blocks
+    setAvailableBlocks(prev => [...prev, blockToRemove])
+    
+    // Remove from dropped blocks
+    setDroppedBlocks(prev => {
+      const newBlocks = [...prev]
+      newBlocks[index] = null
+      return newBlocks
+    })
+  }
 
   const validateDockerfile = () => {
     const requiredOrder = mission.validation?.requiredOrder || []
@@ -257,7 +271,7 @@ const DockerfileJigsaw: React.FC = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen p-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="game-container p-6 mb-6">
             <div className="flex justify-between items-center">
@@ -276,13 +290,12 @@ const DockerfileJigsaw: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Game Area */}
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left Side - Available Commands */}
             <div className="space-y-6">
-              {/* Available Blocks */}
               <div className="game-container p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Available Directives</h2>
-                <div className="grid grid-cols-1 gap-2">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Available Docker Commands</h2>
+                <div className="grid grid-cols-1 gap-3">
                   <AnimatePresence>
                     {availableBlocks.map((block) => (
                       <motion.div
@@ -296,19 +309,38 @@ const DockerfileJigsaw: React.FC = () => {
                     ))}
                   </AnimatePresence>
                 </div>
+                
+                {availableBlocks.length === 0 && (
+                  <div className="text-center text-gray-500 py-8">
+                    <div className="text-4xl mb-2">✅</div>
+                    <p>All commands have been placed!</p>
+                  </div>
+                )}
               </div>
+            </div>
 
-              {/* Drop Zone */}
+            {/* Right Side - Dockerfile Builder */}
+            <div className="space-y-6">
               <div className="game-container p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Your Dockerfile</h2>
-                <DropZone onDrop={handleDrop} blocks={droppedBlocks} />
+                <div className="space-y-3">
+                  {droppedBlocks.map((block, index) => (
+                    <DropSlot
+                      key={index}
+                      index={index}
+                      block={block}
+                      onDrop={handleDrop}
+                      onRemove={handleRemove}
+                    />
+                  ))}
+                </div>
                 
-                <div className="mt-4 flex justify-between">
+                <div className="mt-6 flex justify-between">
                   <button
                     onClick={() => setShowValidation(!showValidation)}
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                   >
-                    {showValidation ? 'Hide' : 'Show'} Validation
+                    {showValidation ? 'Hide' : 'Show'} Correct Order
                   </button>
                   
                   <button
@@ -320,15 +352,15 @@ const DockerfileJigsaw: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Concept Card */}
-            <div>
-              <ConceptCard
-                teaching={mission.teaching}
-                difficulty={player.difficulty}
-                onHintUsed={handleHintUsed}
-              />
-            </div>
+          {/* Concept Card */}
+          <div className="mt-8">
+            <ConceptCard
+              teaching={mission.teaching}
+              difficulty={player.difficulty}
+              onHintUsed={handleHintUsed}
+            />
           </div>
 
           {/* Validation Help */}
@@ -338,7 +370,7 @@ const DockerfileJigsaw: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               className="game-container p-6 mt-6"
             >
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Correct Order Hint</h3>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Correct Dockerfile Order</h3>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-blue-800 mb-2">The correct order should be:</p>
                 <ol className="list-decimal list-inside space-y-1 text-blue-700">
