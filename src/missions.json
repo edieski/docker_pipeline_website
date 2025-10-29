@@ -28,7 +28,7 @@
           {
             "situation": "Your teammate says 'it works on my machine' but fails in staging",
             "solution": "Dockerfiles ensure everyone runs identical environments",
-            "dailyUse": "Morning standup: you commit a Dockerfile so QA tests the exact same Python version you dev with"
+            "dailyUse": "Morning standup: you commit a Dockerfile so the testing team tests the exact same Python version you dev with"
           },
           {
             "situation": "You need to onboard a new developer to a FastAPI project",
@@ -250,7 +250,7 @@
       "intro": {
         "what": "Deployment is taking your built Docker image and running it on a server (cloud) where users can access it",
         "why": "You need a couple of basics: where to pull the image, secrets, and env settings",
-        "where": "Cloud platforms: Azure, AWS, Render, Heroku, Docker Hub + orchestrators like Kubernetes",
+        "where": "Cloud platforms: Azure, AWS, Render, Heroku, Docker Hub, or simple hosting services",
         "how": "Merge PR → pipeline builds image → tags it → pushes to registry → cloud pulls & runs it",
         "purpose": "Understand the minimum info a developer usually provides so a simple app can go live."
       },
@@ -304,7 +304,7 @@
       "intro": {
         "what": "Incident response is what you do when production breaks - diagnose, fix, and restore service FAST",
         "why": "Bugs happen. What matters is restoring service safely and quickly",
-        "where": "Monitoring dashboards (Grafana, Datadog), alert systems (PagerDuty), and your CI pipeline",
+        "where": "Your CI pipeline dashboard, team Slack alerts, and basic health checks",
         "how": "Get alert → check health → choose rollback, hotfix, or redeploy based on risk",
         "purpose": "Pick a safe, developer-friendly response when things go wrong, without needing ops expertise."
       },
@@ -325,12 +325,12 @@
           {
             "situation": "Pager goes off → service down",
             "solution": "You choose rollback vs hotfix based on severity",
-            "dailyUse": "Check Slack → 'Service down' → open monitoring → see error spike → rollback to previous version → service restored in 5 minutes"
+            "dailyUse": "Check Slack → 'Service down' → open CI dashboard → see error spike → rollback to previous version → service restored in 5 minutes"
           },
           {
             "situation": "Customer reports 'app is slow'",
             "solution": "You check metrics, see memory leak, deploy fix",
-            "dailyUse": "Check Grafana → CPU 100% → check logs → memory leak in new feature → hotfix → deploy → monitor → resolved"
+            "dailyUse": "Check CI dashboard → CPU 100% → check logs → memory leak in new feature → hotfix → deploy → monitor → resolved"
           }
         ]
       },
