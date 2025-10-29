@@ -154,9 +154,13 @@ const DockerfileJigsaw: React.FC = () => {
 
   const validateDockerfile = () => {
     const requiredOrder = mission.validation?.requiredOrder || []
-    const currentOrder = droppedBlocks
-      .filter(block => block !== null)
-      .map(block => block!.content)
+    // Keep positional alignment; do not compress by filtering nulls
+    const currentOrder = droppedBlocks.map(block => block ? block.content : null)
+    // Map directive keywords to their required position
+    const directiveToIndex = new Map<string, number>()
+    // Normalization to avoid false negatives (case/extra spaces)
+    const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toUpperCase()
+    requiredOrder.forEach((directive, idx) => directiveToIndex.set(normalize(directive), idx))
     
     let score = 0
     let feedback: string[] = []
@@ -164,22 +168,33 @@ const DockerfileJigsaw: React.FC = () => {
     
     // Check each position
     for (let i = 0; i < requiredOrder.length; i++) {
-      if (i < currentOrder.length) {
-        if (currentOrder[i]?.includes(requiredOrder[i])) {
-          correctCount++
-          score += 20
-          feedback.push(`✅ Step ${i + 1}: Correct! "${currentOrder[i]}"`)
+      const required = requiredOrder[i]
+      const placed = currentOrder[i]
+      if (placed) {
+        // Identify which directive this placed line corresponds to
+        const placedNorm = normalize(placed)
+        const matchedDirective = requiredOrder.find(dir => placedNorm.includes(normalize(dir)))
+        if (!matchedDirective) {
+          feedback.push(`❌ Step ${i + 1}: Unrecognized instruction "${placed}"`)
         } else {
-          feedback.push(`❌ Step ${i + 1}: Expected "${requiredOrder[i]}", got "${currentOrder[i] || 'empty'}"`)
+          const expectedIndex = directiveToIndex.get(normalize(matchedDirective))!
+          if (expectedIndex === i) {
+            correctCount++
+            score += 20
+            feedback.push(`✅ Step ${i + 1}: Correct! "${placed}"`)
+          } else {
+            feedback.push(`❌ Step ${i + 1}: Expected "${required}", got "${placed}"`)
+          }
         }
       } else {
-        feedback.push(`❌ Step ${i + 1}: Missing "${requiredOrder[i]}"`)
+        feedback.push(`❌ Step ${i + 1}: Missing "${required}"`)
       }
     }
     
     // Check for extra blocks
-    if (currentOrder.length > requiredOrder.length) {
-      feedback.push(`⚠️ You have ${currentOrder.length - requiredOrder.length} extra block(s)`)
+    const extraBlocks = droppedBlocks.filter((b) => b !== null).length - requiredOrder.length
+    if (extraBlocks > 0) {
+      feedback.push(`⚠️ You have ${extraBlocks} extra block(s)`)
     }
     
     // Bonus points for having all blocks
@@ -200,7 +215,7 @@ const DockerfileJigsaw: React.FC = () => {
       correctCount, 
       total: requiredOrder.length,
       feedback,
-      success: correctCount === requiredOrder.length
+      success: correctCount === requiredOrder.length && droppedBlocks.every(block => block !== null)
     }
   }
 

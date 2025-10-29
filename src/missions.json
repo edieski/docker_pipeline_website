@@ -38,7 +38,7 @@
         ]
       },
       "validation": {
-        "requiredOrder": ["FROM", "WORKDIR", "COPY requirements.txt", "RUN pip install", "COPY .", "CMD"],
+      "requiredOrder": ["FROM", "WORKDIR", "COPY requirements.txt", "RUN pip install", "COPY .", "EXPOSE", "CMD"],
         "blocks": [
           "FROM python:3.12-slim",
           "WORKDIR /app",

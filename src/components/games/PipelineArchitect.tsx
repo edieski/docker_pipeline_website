@@ -332,21 +332,21 @@ steps:
     const requiredJobs = mission.validation?.requiredJobs || []
     
     // Check if all required jobs are present
-    const presentJobs = pipelineJobs.map(job => job.name)
-    const missingJobs = requiredJobs.filter(job => !presentJobs.includes(job))
+    const presentJobsLower = pipelineJobs.map(job => job.name.toLowerCase())
+    const missingJobs = requiredJobs.filter(job => !presentJobsLower.includes(job.toLowerCase()))
     
     // Check if jobs have proper dependencies
     let dependencyScore = 0
     const hasTestFirst = pipelineJobs.some(job => 
-      job.name === 'test' && 
+      job.name.toLowerCase() === 'test' && 
       pipelineJobs.filter(j => j.dependencies.includes(job.id)).length > 0
     )
     
     const hasBuildAfterTest = pipelineJobs.some(job => 
-      job.name === 'build' && 
+      job.name.toLowerCase() === 'build' && 
       job.dependencies.some(depId => {
         const depJob = pipelineJobs.find(j => j.id === depId)
-        return depJob?.name === 'test'
+        return depJob?.name.toLowerCase() === 'test'
       })
     )
     

@@ -6,6 +6,7 @@ const InstructorDashboard: React.FC = () => {
   const { parseProgressToken, generateProgressToken, setDifficulty, difficulty } = useGameStore()
   const [trackedPlayers, setTrackedPlayers] = useState<Player[]>([])
   const [tokenInput, setTokenInput] = useState('')
+  const [nameInput, setNameInput] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
 
   const handleAddPlayer = () => {
@@ -34,7 +35,7 @@ const InstructorDashboard: React.FC = () => {
 
       const player: Player = {
         id: (tokenData as any).playerId,
-        name: `Player ${((tokenData as any).playerId || 'xxxxxx').slice(0, 6)}`,
+        name: nameInput.trim() || `Player ${((tokenData as any).playerId || 'xxxxxx').slice(0, 6)}`,
         difficulty,
         currentMission: nextMission,
         progress,
@@ -53,6 +54,7 @@ const InstructorDashboard: React.FC = () => {
         }
       })
       setTokenInput('')
+      setNameInput('')
       setShowAddForm(false)
     } else {
       alert('Invalid progress token. Please check and try again.')
@@ -67,6 +69,10 @@ const InstructorDashboard: React.FC = () => {
 
   const handleRemovePlayer = (playerId: string) => {
     setTrackedPlayers(prev => prev.filter(p => p.id !== playerId))
+  }
+
+  const handleRenamePlayer = (playerId: string, newName: string) => {
+    setTrackedPlayers(prev => prev.map(p => p.id === playerId ? { ...p, name: newName } : p))
   }
 
   const exportProgress = () => {
@@ -172,6 +178,18 @@ const InstructorDashboard: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Player Name (optional)
+                </label>
+                <input
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder="Enter player's name..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  maxLength={40}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Progress Token
                 </label>
                 <textarea
@@ -215,7 +233,12 @@ const InstructorDashboard: React.FC = () => {
                 <div key={player.id} className="bg-white border border-gray-200 rounded-lg p-4">
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <h3 className="font-bold text-gray-800">{player.name}</h3>
+                      <input
+                        value={player.name}
+                        onChange={(e) => handleRenamePlayer(player.id, e.target.value)}
+                        placeholder="Player name"
+                        className="font-bold text-gray-800 bg-transparent border-b border-gray-200 focus:outline-none focus:border-blue-400"
+                      />
                       <p className="text-sm text-gray-600 capitalize">{player.difficulty}</p>
                     </div>
                     <button
