@@ -61,18 +61,53 @@ const InstructorDashboard: React.FC = () => {
   }
 
   const exportProgress = () => {
-    const csvData = trackedPlayers.map(player => ({
-      name: player.name,
-      difficulty: player.difficulty,
-      currentMission: player.currentMission,
-      completedMissions: player.progress.filter((p: any) => p.completed).length,
-      totalTimeSpent: Math.round(player.totalTimeSpent / 60),
-      totalHintsUsed: 0, // Default since not available
-      createdAt: new Date().toISOString()
-    }))
+    const csvData = trackedPlayers.map(player => {
+      const quizScores = player.progress.filter((p: any) => p.quizScore !== undefined).map((p: any) => p.quizScore)
+      const avgQuizScore = quizScores.length > 0 
+        ? Math.round(quizScores.reduce((sum: number, score: number) => sum + score, 0) / quizScores.length)
+        : null
+      const totalScore = player.progress.reduce((sum, p) => sum + (p.score || 0), 0)
+      const avgScore = player.progress.length > 0 
+        ? Math.round(totalScore / player.progress.length) 
+        : 0
+      
+      // Build mission scores and quiz scores
+      const missionScores = [1, 2, 3, 4, 5, 6].map(missionId => {
+        const progress = player.progress.find((p: any) => p.missionId === missionId)
+        return progress?.score || 0
+      })
+      const missionQuizScores = [1, 2, 3, 4, 5, 6].map(missionId => {
+        const progress = player.progress.find((p: any) => p.missionId === missionId)
+        return progress?.quizScore || ''
+      })
+      
+      return {
+        name: player.name,
+        difficulty: player.difficulty,
+        currentMission: player.currentMission,
+        completedMissions: player.progress.filter((p: any) => p.completed).length,
+        avgScore,
+        avgQuizScore: avgQuizScore || '',
+        mission1Score: missionScores[0],
+        mission1Quiz: missionQuizScores[0],
+        mission2Score: missionScores[1],
+        mission2Quiz: missionQuizScores[1],
+        mission3Score: missionScores[2],
+        mission3Quiz: missionQuizScores[2],
+        mission4Score: missionScores[3],
+        mission4Quiz: missionQuizScores[3],
+        mission5Score: missionScores[4],
+        mission5Quiz: missionQuizScores[4],
+        mission6Score: missionScores[5],
+        mission6Quiz: missionQuizScores[5],
+        totalTimeSpent: Math.round(player.totalTimeSpent / 60000),
+        totalHintsUsed: player.progress.reduce((sum, p) => sum + (p.hintsUsed || 0), 0),
+        createdAt: new Date().toISOString()
+      }
+    })
 
     const csvContent = [
-      'Name,Difficulty,Current Mission,Completed Missions,Time Spent (min),Hints Used,Created At',
+      'Name,Difficulty,Current Mission,Completed Missions,Avg Score,Avg Quiz %,M1 Score,M1 Quiz %,M2 Score,M2 Quiz %,M3 Score,M3 Quiz %,M4 Score,M4 Quiz %,M5 Score,M5 Quiz %,M6 Score,M6 Quiz %,Time Spent (min),Hints Used,Created At',
       ...csvData.map(row => Object.values(row).join(','))
     ].join('\n')
 
@@ -210,6 +245,18 @@ const InstructorDashboard: React.FC = () => {
                         <span className="text-gray-500">Completed:</span>
                         <span className="font-semibold text-green-600">{completed}/6</span>
                       </div>
+                      {(() => {
+                        const quizScores = player.progress.filter((p: any) => p.quizScore !== undefined).map((p: any) => p.quizScore)
+                        const avgQuizScore = quizScores.length > 0 
+                          ? Math.round(quizScores.reduce((sum: number, score: number) => sum + score, 0) / quizScores.length)
+                          : null
+                        return avgQuizScore !== null && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Quiz Avg:</span>
+                            <span className="font-semibold text-purple-600">{avgQuizScore}%</span>
+                          </div>
+                        )
+                      })()}
                       {minutesAgo !== null && (
                         <div className="flex justify-between text-xs pt-2 border-t border-gray-200">
                           <span className="text-gray-500">Last update:</span>
@@ -420,7 +467,7 @@ const InstructorDashboard: React.FC = () => {
             </div>
             
             <div className="mt-4 text-sm text-gray-600">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-green-500 rounded-full"></div>
                   <span>Completed</span>
@@ -432,6 +479,10 @@ const InstructorDashboard: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
                   <span>Locked</span>
+                </div>
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-purple-600 font-semibold">Quiz %</span>
+                  <span className="text-xs text-gray-500">shown below mission status</span>
                 </div>
               </div>
             </div>

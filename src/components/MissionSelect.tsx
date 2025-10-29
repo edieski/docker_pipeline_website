@@ -6,7 +6,7 @@ import missionsData from '../missions.json'
 
 const MissionSelect: React.FC = () => {
   const navigate = useNavigate()
-  const { player, generateProgressToken } = useGameStore()
+  const { player } = useGameStore()
 
   if (!player) {
     navigate('/')
@@ -30,14 +30,9 @@ const MissionSelect: React.FC = () => {
     navigate(`/intro/${missionId}`)
   }
 
-  const handleShareProgress = () => {
-    const token = generateProgressToken()
-    navigator.clipboard.writeText(token)
-    alert('Progress token copied to clipboard! Share this with your instructor.')
-  }
 
   const completedMissions = player.progress.filter((p: any) => p.completed).length
-  const totalTimeSpent = Math.round(player.totalTimeSpent / 60) // Convert to minutes
+  const totalTimeSpent = Math.round(player.totalTimeSpent / 60000) // Convert milliseconds to minutes
 
   return (
     <div className="min-h-screen p-4">
@@ -101,7 +96,7 @@ const MissionSelect: React.FC = () => {
                   </div>
                   {progress && (
                     <div className="text-xs text-gray-500 mt-1">
-                      {Math.round(progress.timeSpent / 60)}min
+                      {Math.round(progress.timeSpent / 60000)}min
                     </div>
                   )}
                 </div>
@@ -152,7 +147,7 @@ const MissionSelect: React.FC = () => {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Time:</span>
-                      <span className="font-semibold">{Math.round(progress.timeSpent / 60)}min</span>
+                      <span className="font-semibold">{Math.round(progress.timeSpent / 60000)}min</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Hints:</span>
@@ -182,12 +177,6 @@ const MissionSelect: React.FC = () => {
           transition={{ delay: 0.5 }}
           className="flex justify-center gap-4 mt-8"
         >
-          <button
-            onClick={handleShareProgress}
-            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            📤 Share Progress
-          </button>
           <button
             onClick={() => navigate('/instructor')}
             className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"

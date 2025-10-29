@@ -177,10 +177,16 @@ export const useGameStore = create<GameState>()(
           ? state.player.progress.map((p, i) => i === existingProgressIndex ? updatedProgress : p)
           : [...state.player.progress, updatedProgress];
         
+        // Calculate time difference to avoid double-counting
+        // Only add the difference between new and old timeSpent
+        const oldTimeSpent = existingProgress.timeSpent || 0;
+        const newTimeSpent = updatedProgress.timeSpent || 0;
+        const timeDifference = newTimeSpent - oldTimeSpent;
+        
         const updatedPlayer: Player = {
           ...state.player,
           progress: newProgress,
-          totalTimeSpent: state.player.totalTimeSpent + (progress.timeSpent || 0)
+          totalTimeSpent: Math.max(0, state.player.totalTimeSpent + timeDifference)
         };
         
         set({ player: updatedPlayer });

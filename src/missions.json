@@ -123,7 +123,7 @@
       },
       "teaching": {
       "tldr": "Docker caches steps. Order your steps to avoid re-doing work and speed up builds",
-        "explainAgain": "Like stacking boxes: put heavy, stable boxes (dependencies) at the bottom, light changing boxes (your code) on top",
+        "explainAgain": "Like stacking boxes: put heavy, stable boxes (dependencies) at the bottom, light changing boxes (your code) on top. **Caching** means Docker remembers the result of each layer (like a step in your Dockerfile). If nothing changed in that layer, Docker reuses the saved result instead of rebuilding it - this makes builds super fast! **Dependencies** are external packages your code needs to run (like libraries from pip, npm, etc.). They're listed in requirements.txt and usually don't change often, so putting them in layers before your code means those layers get cached and reused.",
         "example": "Copy requirements.txt first, install dependencies, THEN copy your code. This way code changes don't invalidate dependency cache",
         "exercise": "Reorder instructions and toggle optimization flags to hit size and time targets",
         "cheatSheet": "Optimization tips: Use slim base images, copy dependencies before code, use --no-cache-dir, combine RUN commands, use .dockerignore"
@@ -170,7 +170,7 @@
             "It makes the image smaller"
           ],
           "correctAnswer": 1,
-          "explanation": "Docker caches each layer. If requirements.txt hasn't changed, Docker reuses the cached layer instead of reinstalling dependencies. This saves time!",
+          "explanation": "**Caching** is Docker's way of remembering what each layer built. When Docker builds your image, it creates a 'layer' for each instruction (like COPY or RUN). If the files that instruction uses haven't changed since the last build, Docker reuses the saved result from that layer instead of rebuilding it. This is called 'layer caching' and it's why copying requirements.txt first helps - if your code changes but requirements.txt doesn't, Docker can skip reinstalling all your dependencies and just reuse the cached layer with dependencies already installed. This saves time!",
           "wrongAnswerExplanations": {
             "0": "It's not just faster - it's about Docker's layer caching system that avoids unnecessary work.",
             "2": "It's not required - it's a best practice to optimize build speed through caching.",
@@ -186,7 +186,7 @@
             "Docker won't build it"
           ],
           "correctAnswer": 1,
-          "explanation": "If code changes frequently, copying it early means Docker has to reinstall dependencies every time you change code, making builds slow.",
+          "explanation": "**Dependencies** are external packages your application needs (like Flask, requests, pandas - listed in requirements.txt). When you copy your code before installing dependencies, every code change invalidates (breaks) the cache for that COPY layer. Since Docker builds layers in order, this means Docker has to rebuild everything that comes after - including reinstalling all your dependencies. This is wasteful because dependencies change rarely, but your code changes often. By copying dependencies first, you ensure that code changes only affect the code layer, not the dependency installation layer.",
           "wrongAnswerExplanations": {
             "0": "It does work, but it's much slower because dependencies rebuild on every code change.",
             "2": "Image size stays the same, but build time increases significantly.",

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import TechTermTooltip from './TechTermTooltip'
 
 interface QuizQuestion {
   question: string
@@ -100,7 +101,7 @@ const MissionQuiz: React.FC<MissionQuizProps> = ({ questions, missionTitle, onCo
         {/* Question */}
         <div className="bg-white rounded-lg p-6 mb-6 border-2 border-gray-200">
           <h2 className="text-xl font-bold text-gray-800 mb-6">
-            {currentQuestion.question}
+            <TechTermTooltip text={currentQuestion.question} />
           </h2>
 
           {/* Options */}
@@ -138,7 +139,9 @@ const MissionQuiz: React.FC<MissionQuizProps> = ({ questions, missionTitle, onCo
                     }`}>
                       {showResult && isCorrect ? '✓' : showResult && isSelected && !isCorrect ? '✗' : String.fromCharCode(65 + index)}
                     </div>
-                    <span className="flex-1 text-gray-800">{option}</span>
+                    <span className="flex-1 text-gray-800">
+                      <TechTermTooltip text={option} />
+                    </span>
                   </div>
                 </button>
               )

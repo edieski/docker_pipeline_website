@@ -47,12 +47,6 @@ const VictoryScreen: React.FC = () => {
     navigate('/')
   }
 
-  const handleShareProgress = () => {
-    const { generateProgressToken } = useGameStore.getState()
-    const token = generateProgressToken()
-    navigator.clipboard.writeText(token)
-    alert('Progress token copied to clipboard! Share this with your instructor.')
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -285,13 +279,6 @@ const VictoryScreen: React.FC = () => {
           transition={{ delay: 1.8 }}
           className="flex justify-center gap-4"
         >
-          <button
-            onClick={handleShareProgress}
-            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            📤 Share Progress
-          </button>
-          
           <button
             onClick={handlePlayAgain}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

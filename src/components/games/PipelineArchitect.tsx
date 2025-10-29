@@ -313,7 +313,7 @@ function getYamlLineExplanation(line: string, jobName: string): string {
 
 const PipelineArchitect: React.FC = () => {
   const navigate = useNavigate()
-  const { player, updateMissionProgress, unlockNextMission, generateProgressToken } = useGameStore()
+  const { player, updateMissionProgress, unlockNextMission } = useGameStore()
   const [availableJobs, setAvailableJobs] = useState<PipelineJob[]>([])
   const [pipelineJobs, setPipelineJobs] = useState<PipelineJob[]>([])
   const [gameCompleted, setGameCompleted] = useState(false)
@@ -548,11 +548,6 @@ steps:
     navigate('/')
   }
 
-  const handleShareProgress = () => {
-    const token = generateProgressToken()
-    navigator.clipboard.writeText(token)
-    alert('Progress token copied to clipboard! Share this with your instructor.')
-  }
 
   const handleGoHome = () => {
     navigate('/')
@@ -623,27 +618,6 @@ steps:
             </div>
           )}
 
-          {/* Progress Token */}
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">📤 Share Your Progress</h3>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={generateProgressToken()}
-                className="flex-1 px-4 py-2 bg-white border border-purple-300 rounded-lg text-sm font-mono text-gray-700"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button
-                onClick={handleShareProgress}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Copy
-              </button>
-            </div>
-            <p className="text-xs text-gray-600 mt-2">Share this token with your instructor</p>
-          </div>
-          
           <div className="flex space-x-4 justify-center flex-wrap gap-2">
             <button
               onClick={handleGoHome}
