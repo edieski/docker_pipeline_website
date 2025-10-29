@@ -71,7 +71,6 @@ const LogDetective: React.FC = () => {
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
   const [showInstructions, setShowInstructions] = useState(true)
-  const [selectedError, setSelectedError] = useState<LogError | null>(null)
 
   const mission = missionsData.missions.find(m => m.id === 4)
   

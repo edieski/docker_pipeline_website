@@ -302,7 +302,6 @@ const DeployOrDie: React.FC = () => {
   }
 
   const validateDeployment = () => {
-    const errors = Object.keys(validationErrors).length
     let score = 0
     let feedback: string[] = []
     
