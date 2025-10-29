@@ -64,7 +64,7 @@
         "why": "Bad order means slow builds and wasted time/money. Good order makes builds snappy.",
         "where": "In your Dockerfile instruction order and `.dockerignore` file",
         "how": "Put stuff that changes rarely (dependencies) before stuff that changes often (your code)",
-        "purpose": "You’ll learn practical habits to speed up your dev loop (and CI) without knowing any ops tools."
+        "purpose": "You'll learn practical habits to speed up your local builds and CI runs without needing ops knowledge."
       },
       "difficulty": {
         "beginner": { "hints": 5, "targetSize": 400, "targetTime": 30 },
@@ -306,7 +306,7 @@
         "why": "Bugs happen. What matters is restoring service safely and quickly",
         "where": "Monitoring dashboards (Grafana, Datadog), alert systems (PagerDuty), and your CI pipeline",
         "how": "Get alert → check health → choose rollback, hotfix, or redeploy based on risk",
-        "purpose": "Pick a safe, developer-friendly response when things go wrong, without deep ops knowledge."
+        "purpose": "Pick a safe, developer-friendly response when things go wrong, without needing ops expertise."
       },
       "difficulty": {
         "beginner": { "hints": 5, "timeLimit": 300 },

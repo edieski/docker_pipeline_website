@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dockerized Python Demo</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>🚀 Dockerized Python Demo</h1>
+      <p>This is a minimal Flask app running in a container.</p>
+
+      <section class="card">
+        <button id="ping">Check Health</button>
+        <pre id="result">Click the button to call /health</pre>
+      </section>
+    </main>
+
+    <script>
+      const btn = document.getElementById('ping');
+      const res = document.getElementById('result');
+      btn.addEventListener('click', async () => {
+        res.textContent = 'Checking...';
+        try {
+          const r = await fetch('/health');
+          const json = await r.json();
+          res.textContent = JSON.stringify(json, null, 2);
+        } catch (e) {
+          res.textContent = 'Error: ' + e.message;
+        }
+      });
+    </script>
+  </body>
+  </html>
+
+

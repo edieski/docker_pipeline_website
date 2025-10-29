@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useGameStore, Player } from '../store/gameStore'
 
 const InstructorDashboard: React.FC = () => {
-  const { parseProgressToken } = useGameStore()
+  const { parseProgressToken, generateProgressToken, setDifficulty, difficulty } = useGameStore()
   const [trackedPlayers, setTrackedPlayers] = useState<Player[]>([])
   const [tokenInput, setTokenInput] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
@@ -13,14 +13,32 @@ const InstructorDashboard: React.FC = () => {
 
     const tokenData = parseProgressToken(tokenInput.trim())
     if (tokenData) {
-      // Create a mock player from token data
+      // Map available fields from token
+      const completedMissions: number[] = Array.isArray((tokenData as any).completedMissions)
+        ? (tokenData as any).completedMissions
+        : []
+      const difficulty = (tokenData as any).difficulty || 'beginner'
+      const timeSpent = typeof (tokenData as any).timeSpent === 'number' ? (tokenData as any).timeSpent : 0
+
+      const progress = completedMissions.map((mid) => ({
+        missionId: mid,
+        completed: true,
+        timeSpent: 0,
+        hintsUsed: 0,
+        score: 0
+      }))
+
+      const nextMission = completedMissions.length > 0
+        ? Math.min(Math.max(...completedMissions) + 1, 6)
+        : 1
+
       const player: Player = {
-        id: tokenData.playerId,
-        name: `Player ${tokenData.playerId.slice(0, 6)}`,
-        difficulty: 'beginner', // Default since not in token
-        currentMission: 1,
-        progress: [],
-        totalTimeSpent: 0 // Default since not available in token
+        id: (tokenData as any).playerId,
+        name: `Player ${((tokenData as any).playerId || 'xxxxxx').slice(0, 6)}`,
+        difficulty,
+        currentMission: nextMission,
+        progress,
+        totalTimeSpent: timeSpent
       }
       
       setTrackedPlayers(prev => {
@@ -39,6 +57,12 @@ const InstructorDashboard: React.FC = () => {
     } else {
       alert('Invalid progress token. Please check and try again.')
     }
+  }
+
+  const handleGenerateTestToken = () => {
+    const token = generateProgressToken()
+    setTokenInput(token)
+    setShowAddForm(true)
   }
 
   const handleRemovePlayer = (playerId: string) => {
@@ -106,6 +130,24 @@ const InstructorDashboard: React.FC = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 {showAddForm ? 'Cancel' : '+ Add Player'}
+              </button>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Test Difficulty:</label>
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as 'beginner' | 'intermediate' | 'advanced')}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </div>
+              <button
+                onClick={handleGenerateTestToken}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                🧪 Generate Sample Token
               </button>
               {trackedPlayers.length > 0 && (
                 <button
