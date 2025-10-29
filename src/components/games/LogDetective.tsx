@@ -309,7 +309,6 @@ const LogDetective: React.FC = () => {
                     <div
                       key={index}
                       className={`${isError ? 'bg-red-900 text-red-300' : ''} p-1 rounded cursor-pointer hover:bg-gray-800`}
-                      onClick={() => error && setSelectedError(error)}
                     >
                       <span className="text-gray-500 mr-2">{String(index + 1).padStart(3, ' ')}</span>
                       {line}
