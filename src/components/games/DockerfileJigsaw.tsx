@@ -11,6 +11,7 @@ interface DockerBlock {
   id: string
   content: string
   type: 'directive'
+  keyId: string
 }
 
 interface DropSlotProps {
@@ -100,6 +101,15 @@ const DockerfileJigsaw: React.FC = () => {
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
   const [showValidation, setShowValidation] = useState(false)
+  const [timeSpentMs, setTimeSpentMs] = useState(0)
+  interface LocalValidation {
+    score: number
+    correctCount: number
+    total: number
+    feedback: string[]
+    success: boolean
+  }
+  const [lastValidation, setLastValidation] = useState<LocalValidation | null>(null)
 
   const mission = missionsData.missions.find(m => m.id === 1)
   
@@ -108,21 +118,69 @@ const DockerfileJigsaw: React.FC = () => {
     return null
   }
 
+  // Stable UUIDs per directive category to avoid string-based comparisons
+  const CATEGORY_UUID = {
+    FROM: '11111111-1111-4111-8111-111111111111',
+    WORKDIR: '22222222-2222-4222-8222-222222222222',
+    COPY_REQS: '33333333-3333-4333-8333-333333333333',
+    RUN_PIP: '44444444-4444-4444-8444-444444444444',
+    COPY_APP: '55555555-5555-4555-8555-555555555555',
+    EXPOSE: '66666666-6666-4666-8666-666666666666',
+    CMD: '77777777-7777-4777-8777-777777777777',
+    EXTRA: '88888888-8888-4888-8888-888888888888'
+  } as const
+
+  const LABEL_BY_UUID: Record<string, string> = {
+    [CATEGORY_UUID.FROM]: 'FROM',
+    [CATEGORY_UUID.WORKDIR]: 'WORKDIR',
+    [CATEGORY_UUID.COPY_REQS]: 'COPY requirements.txt',
+    [CATEGORY_UUID.RUN_PIP]: 'RUN pip install',
+    [CATEGORY_UUID.COPY_APP]: 'COPY .',
+    [CATEGORY_UUID.EXPOSE]: 'EXPOSE',
+    [CATEGORY_UUID.CMD]: 'CMD',
+    [CATEGORY_UUID.EXTRA]: 'EXTRA'
+  }
+  const LABEL_TO_UUID: Record<string, string> = {
+    'FROM': CATEGORY_UUID.FROM,
+    'WORKDIR': CATEGORY_UUID.WORKDIR,
+    'COPY requirements.txt': CATEGORY_UUID.COPY_REQS,
+    'RUN pip install': CATEGORY_UUID.RUN_PIP,
+    'COPY .': CATEGORY_UUID.COPY_APP,
+    'EXPOSE': CATEGORY_UUID.EXPOSE,
+    'CMD': CATEGORY_UUID.CMD
+  }
+
+  // No longer needed: comparisons use UUIDs end-to-end
+
+  // Classify a free-form instruction into a category UUID
+  const classify = (text: string): string => {
+    const t = text.trim().toUpperCase()
+    if (t.startsWith('FROM')) return CATEGORY_UUID.FROM
+    if (t.startsWith('WORKDIR')) return CATEGORY_UUID.WORKDIR
+    if (t.startsWith('COPY REQUIREMENTS.TXT')) return CATEGORY_UUID.COPY_REQS
+    if (t.startsWith('RUN PIP INSTALL')) return CATEGORY_UUID.RUN_PIP
+    if (t.startsWith('COPY .') || t.startsWith('COPY . .')) return CATEGORY_UUID.COPY_APP
+    if (t.startsWith('EXPOSE')) return CATEGORY_UUID.EXPOSE
+    if (t.startsWith('CMD')) return CATEGORY_UUID.CMD
+    return CATEGORY_UUID.EXTRA
+  }
+
   useEffect(() => {
     // Initialize game based on difficulty
-    const allBlocks = (mission.validation?.blocks || []).map((content, index) => ({
-      id: `block-${index}`,
+    const allBlocks = (mission.validation?.blocks || []).map((content) => ({
+      id: crypto.randomUUID(),
       content,
-      type: 'directive' as const
+      type: 'directive' as const,
+      keyId: classify(content)
     }))
     
     // Shuffle blocks for the puzzle
     const shuffled = [...allBlocks].sort(() => Math.random() - 0.5)
     setAvailableBlocks(shuffled)
     
-    // Initialize empty drop zones
-    const requiredOrder = mission.validation?.requiredOrder || []
-    setDroppedBlocks(new Array(requiredOrder.length).fill(null))
+    // Initialize empty drop zones based on required steps count
+    const totalRequired = (mission.validation?.requiredOrder || []).length
+    setDroppedBlocks(new Array(totalRequired).fill(null))
   }, [mission, player])
 
   const handleDrop = (item: DockerBlock, index: number) => {
@@ -153,15 +211,11 @@ const DockerfileJigsaw: React.FC = () => {
   }
 
   const validateDockerfile = () => {
-    const requiredOrder = mission.validation?.requiredOrder || []
+    const requiredOrder = (mission.validation?.requiredOrder || [])
+      .map((r) => LABEL_TO_UUID[(r || '').trim()] || CATEGORY_UUID.EXTRA)
     // Keep positional alignment; do not compress by filtering nulls
-    const currentOrder = droppedBlocks.map(block => block ? block.content : null)
-    // Map directive keywords to their required position
-    const directiveToIndex = new Map<string, number>()
-    // Normalization to avoid false negatives (case/extra spaces)
-    const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toUpperCase()
-    requiredOrder.forEach((directive, idx) => directiveToIndex.set(normalize(directive), idx))
-    
+    const currentOrder = droppedBlocks.map(block => block ? (block.keyId as string) : null)
+
     let score = 0
     let feedback: string[] = []
     let correctCount = 0
@@ -170,24 +224,20 @@ const DockerfileJigsaw: React.FC = () => {
     for (let i = 0; i < requiredOrder.length; i++) {
       const required = requiredOrder[i]
       const placed = currentOrder[i]
+      
       if (placed) {
-        // Identify which directive this placed line corresponds to
-        const placedNorm = normalize(placed)
-        const matchedDirective = requiredOrder.find(dir => placedNorm.includes(normalize(dir)))
-        if (!matchedDirective) {
-          feedback.push(`❌ Step ${i + 1}: Unrecognized instruction "${placed}"`)
+        if (placed === required) {
+          correctCount++
+          score += 20
+          feedback.push(`✅ Step ${i + 1}: Correct!`)
         } else {
-          const expectedIndex = directiveToIndex.get(normalize(matchedDirective))!
-          if (expectedIndex === i) {
-            correctCount++
-            score += 20
-            feedback.push(`✅ Step ${i + 1}: Correct! "${placed}"`)
-          } else {
-            feedback.push(`❌ Step ${i + 1}: Expected "${required}", got "${placed}"`)
-          }
+          const expectedLabel = LABEL_BY_UUID[required || ''] || (mission.validation?.requiredOrder?.[i] ?? 'Unknown')
+          const gotLabel = LABEL_BY_UUID[placed || ''] || 'Unknown'
+          feedback.push(`❌ Step ${i + 1}: Expected "${expectedLabel}" , got "${gotLabel}"`)
         }
       } else {
-        feedback.push(`❌ Step ${i + 1}: Missing "${required}"`)
+        const expectedLabel = LABEL_BY_UUID[required || ''] || (mission.validation?.requiredOrder?.[i] ?? 'Unknown')
+        feedback.push(`❌ Step ${i + 1}: Missing "${expectedLabel}"`)
       }
     }
     
@@ -222,6 +272,8 @@ const DockerfileJigsaw: React.FC = () => {
   const handleSubmit = () => {
     const validation = validateDockerfile()
     const timeSpent = Date.now() - startTime
+    setTimeSpentMs(timeSpent)
+    setLastValidation(validation)
     
     updateMissionProgress(1, {
       completed: validation.success,
@@ -246,7 +298,7 @@ const DockerfileJigsaw: React.FC = () => {
   }
 
   if (gameCompleted) {
-    const validation = validateDockerfile()
+    const validation = lastValidation || validateDockerfile()
     
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -275,7 +327,7 @@ const DockerfileJigsaw: React.FC = () => {
                 <div className="text-sm text-gray-600">Correct Order</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-purple-600">{Math.round((Date.now() - startTime) / 60000)}min</div>
+                <div className="text-2xl font-bold text-purple-600">{Math.max(0, Math.round(timeSpentMs / 60000))}min</div>
                 <div className="text-sm text-gray-600">Time Spent</div>
               </div>
               <div>
@@ -439,7 +491,7 @@ const DockerfileJigsaw: React.FC = () => {
                 <p className="text-blue-800 mb-2">The correct order should be:</p>
                 <ol className="list-decimal list-inside space-y-1 text-blue-700">
                   {(mission.validation?.requiredOrder || []).map((step, index) => (
-                    <li key={index}>{step}</li>
+                    <li key={index} className="mb-1">{step}</li>
                   ))}
                 </ol>
               </div>

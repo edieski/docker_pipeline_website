@@ -151,11 +151,11 @@
       "validation": {
         "requiredJobs": ["test", "lint", "build", "push", "deploy"],
         "yamlTemplate": {
-          "test": "name: Test\nruns-on: ubuntu-latest\nsteps:\n  - uses: actions/checkout@v4\n  - uses: actions/setup-python@v5\n  - run: pip install -r requirements.txt\n  - run: pytest",
-          "lint": "name: Lint\nruns-on: ubuntu-latest\nsteps:\n  - uses: actions/checkout@v4\n  - uses: actions/setup-python@v5\n  - run: pip install flake8\n  - run: flake8 .",
-          "build": "name: Build\nneeds: [test, lint]\nruns-on: ubuntu-latest\nsteps:\n  - uses: actions/checkout@v4\n  - uses: docker/build-push-action@v6\n    with:\n      push: false\n      tags: myapp:${{ github.sha }}",
-          "push": "name: Push\nneeds: build\nruns-on: ubuntu-latest\nsteps:\n  - uses: docker/build-push-action@v6\n    with:\n      push: true\n      tags: myapp:${{ github.sha }}",
-          "deploy": "name: Deploy\nneeds: push\nruns-on: ubuntu-latest\nsteps:\n  - run: echo 'Deploying to staging'"
+          "test": "# Job name shows in the Actions UI\nname: Test\n# Runner machine where the job executes\nruns-on: ubuntu-latest\n# Steps are executed sequentially in this job\nsteps:\n  # Check out your repository code\n  - uses: actions/checkout@v4\n  # Install the requested Python version\n  - uses: actions/setup-python@v5\n  # Install dependencies listed in requirements.txt\n  - run: pip install -r requirements.txt\n  # Run the test suite with pytest\n  - run: pytest",
+          "lint": "# Lint job to enforce code style\nname: Lint\n# Use the latest Ubuntu runner\nruns-on: ubuntu-latest\n# Sequential steps\nsteps:\n  # Get repository code\n  - uses: actions/checkout@v4\n  # Provision Python for flake8\n  - uses: actions/setup-python@v5\n  # Install the linter\n  - run: pip install flake8\n  # Lint the whole repository\n  - run: flake8 .",
+          "build": "# Build job builds a Docker image\nname: Build\n# Do not start until test and lint are successful\nneeds: [test, lint]\n# Runner OS\nruns-on: ubuntu-latest\n# Steps to produce the image\nsteps:\n  # Check out source code for the Docker build context\n  - uses: actions/checkout@v4\n  # Official action to build/push Docker images\n  - uses: docker/build-push-action@v6\n    with:\n      # Build only in this job; pushing happens later\n      push: false\n      # Tag image with the commit SHA\n      tags: myapp:${{ github.sha }}",
+          "push": "# Push job publishes the image to registry\nname: Push\n# Must run after Build job\nneeds: build\n# Runner machine\nruns-on: ubuntu-latest\n# Steps\nsteps:\n  # Re-use build action to push the image\n  - uses: docker/build-push-action@v6\n    with:\n      # Push to the registry in this job\n      push: true\n      # Same tag used in Build job\n      tags: myapp:${{ github.sha }}",
+          "deploy": "# Deploy job simulates deployment to staging\nname: Deploy\n# Deploy after image is pushed\nneeds: push\n# Runner\nruns-on: ubuntu-latest\n# Steps\nsteps:\n  # Replace with real deployment script in production\n  - run: echo 'Deploying to staging'"
         }
       }
     },

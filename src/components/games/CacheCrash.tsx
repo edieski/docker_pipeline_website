@@ -110,6 +110,8 @@ const CacheCrash: React.FC = () => {
   const [gameCompleted, setGameCompleted] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
+  const [timeSpentMs, setTimeSpentMs] = useState(0)
+  const [lastValidation, setLastValidation] = useState<ReturnType<typeof validateOptimization> | null>(null)
   const [showOptimizations, setShowOptimizations] = useState(false)
   const [appliedOptimizations, setAppliedOptimizations] = useState<string[]>([])
   const [buildTime, setBuildTime] = useState(45)
@@ -335,6 +337,8 @@ const CacheCrash: React.FC = () => {
   const handleSubmit = () => {
     const validation = validateOptimization()
     const timeSpent = Date.now() - startTime
+    setTimeSpentMs(timeSpent)
+    setLastValidation(validation)
     
     updateMissionProgress(2, {
       completed: validation.success,
@@ -359,7 +363,7 @@ const CacheCrash: React.FC = () => {
   }
 
   if (gameCompleted) {
-    const validation = validateOptimization()
+    const validation = lastValidation || validateOptimization()
     
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -388,7 +392,7 @@ const CacheCrash: React.FC = () => {
                 <div className="text-sm text-gray-600">Correct Order</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-purple-600">{Math.round((Date.now() - startTime) / 60000)}min</div>
+                <div className="text-2xl font-bold text-purple-600">{Math.max(0, Math.round(timeSpentMs / 60000))}min</div>
                 <div className="text-sm text-gray-600">Time Spent</div>
               </div>
               <div>

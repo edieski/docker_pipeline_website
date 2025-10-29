@@ -70,6 +70,8 @@ const LogDetective: React.FC = () => {
   const [gameCompleted, setGameCompleted] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
+  const [timeSpentMs, setTimeSpentMs] = useState(0)
+  const [lastValidation, setLastValidation] = useState<ReturnType<typeof validateDetection> | null>(null)
   const [showInstructions, setShowInstructions] = useState(true)
 
   const mission = missionsData.missions.find(m => m.id === 4)
@@ -151,6 +153,8 @@ const LogDetective: React.FC = () => {
   const handleSubmit = () => {
     const validation = validateDetection()
     const timeSpent = Date.now() - startTime
+    setTimeSpentMs(timeSpent)
+    setLastValidation(validation)
     
     updateMissionProgress(4, {
       completed: validation.allErrorsFixed,
@@ -175,7 +179,7 @@ const LogDetective: React.FC = () => {
   }
 
   if (gameCompleted) {
-    const validation = validateDetection()
+    const validation = lastValidation || validateDetection()
     
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -204,7 +208,7 @@ const LogDetective: React.FC = () => {
                 <div className="text-sm text-gray-600">Errors Fixed</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-purple-600">{Math.round((Date.now() - startTime) / 60000)}min</div>
+                <div className="text-2xl font-bold text-purple-600">{Math.max(0, Math.round(timeSpentMs / 60000))}min</div>
                 <div className="text-sm text-gray-600">Time Spent</div>
               </div>
               <div>

@@ -63,6 +63,8 @@ const DeployOrDie: React.FC = () => {
   const [gameCompleted, setGameCompleted] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
+  const [timeSpentMs, setTimeSpentMs] = useState(0)
+  const [lastValidation, setLastValidation] = useState<ReturnType<typeof validateDeployment> | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [showExplanation, setShowExplanation] = useState(false)
   const [selectedSetting, setSelectedSetting] = useState<DeploymentSetting | null>(null)
@@ -286,6 +288,8 @@ const DeployOrDie: React.FC = () => {
   const handleDeploy = () => {
     const validation = validateDeployment()
     const timeSpent = Date.now() - startTime
+    setTimeSpentMs(timeSpent)
+    setLastValidation(validation)
     
     updateMissionProgress(5, {
       completed: validation.success,
@@ -379,7 +383,7 @@ const DeployOrDie: React.FC = () => {
   }
 
   if (gameCompleted) {
-    const validation = validateDeployment()
+    const validation = lastValidation || validateDeployment()
     
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -414,6 +418,10 @@ const DeployOrDie: React.FC = () => {
               <div>
                 <div className="text-2xl font-bold text-orange-600">{config.port}</div>
                 <div className="text-sm text-gray-600">Port</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-purple-600">{Math.max(0, Math.round(timeSpentMs / 60000))}min</div>
+                <div className="text-sm text-gray-600">Time Spent</div>
               </div>
             </div>
           </div>
