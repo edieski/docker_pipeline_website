@@ -1,0 +1,73 @@
+name: Demo CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      run: |
+        cd test/python-app
+        docker build -t demo-python-app:latest .
+        
+    - name: Run container
+      run: |
+        docker run -d --rm -p 8000:8000 --name demo-python-app demo-python-app:latest
+        
+    - name: Wait for app to start
+      run: sleep 10
+      
+    - name: Test health endpoint
+      run: |
+        curl -f http://localhost:8000/health || exit 1
+        echo "Health check passed!"
+        
+    - name: Test UI endpoint
+      run: |
+        curl -f http://localhost:8000/ | grep -q "Dockerized Python Demo" || exit 1
+        echo "UI endpoint working!"
+        
+    - name: Show container logs
+      run: docker logs demo-python-app
+      
+    - name: Cleanup
+      if: always()
+      run: docker stop demo-python-app || true
+      
+  deploy-staging:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build image for staging
+      run: |
+        cd test/python-app
+        docker build -t demo-python-app:staging .
+        
+    - name: Deploy to staging
+      run: |
+        echo "🚀 Deploying to staging environment..."
+        echo "In a real pipeline, this would:"
+        echo "- Push image to container registry"
+        echo "- Deploy to Kubernetes/Docker Swarm"
+        echo "- Run smoke tests"
+        echo "- Notify team"
+        echo ""
+        echo "Demo deployment complete! ✅"
