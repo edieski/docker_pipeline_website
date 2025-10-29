@@ -3,12 +3,13 @@
     {
       "id": 1,
       "title": "Dockerfile Jigsaw",
-      "description": "Build a valid Dockerfile by ordering the directive blocks correctly",
+      "description": "Learn the basic pieces of a Dockerfile by arranging steps in the right order",
       "intro": {
         "what": "Docker is software that packages your code + everything it needs to run into a 'container' - like a sealed lunchbox",
         "why": "Stops 'it works on my machine' problems - everyone runs the same exact environment",
         "where": "A file called `Dockerfile` in your project root (next to your Python code)",
-        "how": "Write a Dockerfile → run `docker build` → get an image → run `docker run` → app starts identically on any computer"
+        "how": "Write a Dockerfile → run `docker build` → get an image → run `docker run` → app starts identically on any computer",
+        "purpose": "By the end, you’ll recognize the core Dockerfile steps developers use daily (choose a base, install deps, copy code, and start the app)."
       },
       "difficulty": {
         "beginner": { "hints": 5, "blocks": 8 },
@@ -16,7 +17,7 @@
         "advanced": { "hints": 1, "blocks": 12 }
       },
       "teaching": {
-        "tldr": "Dockerfiles define how to build container images - they're like recipes for your app",
+      "tldr": "Dockerfiles are recipes that describe how to run your app anywhere, the same way",
         "explainAgain": "Think of it like a recipe: first you get ingredients (FROM), then set up workspace (WORKDIR), copy files (COPY), install dependencies (RUN), and start cooking (CMD)",
         "example": "FROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install -r requirements.txt\nCOPY . .\nCMD [\"python\", \"app.py\"]",
         "exercise": "Try reordering these instructions to optimize build speed and image size",
@@ -57,12 +58,13 @@
     {
       "id": 2,
       "title": "Cache Crash",
-      "description": "Optimize your Dockerfile for faster builds and smaller images",
+      "description": "Make builds faster and images smaller by reordering a Dockerfile like a pro",
       "intro": {
         "what": "Each Dockerfile instruction creates a 'layer' - Docker reuses unchanged layers to speed up builds",
-        "why": "Bad layer order = rebuild everything every time = slow dev & expensive CI bills",
+        "why": "Bad order means slow builds and wasted time/money. Good order makes builds snappy.",
         "where": "In your Dockerfile instruction order and `.dockerignore` file",
-        "how": "Put stuff that changes rarely (dependencies) before stuff that changes often (your code)"
+        "how": "Put stuff that changes rarely (dependencies) before stuff that changes often (your code)",
+        "purpose": "You’ll learn practical habits to speed up your dev loop (and CI) without knowing any ops tools."
       },
       "difficulty": {
         "beginner": { "hints": 5, "targetSize": 400, "targetTime": 30 },
@@ -70,7 +72,7 @@
         "advanced": { "hints": 1, "targetSize": 200, "targetTime": 20 }
       },
       "teaching": {
-        "tldr": "Docker layers are cached - optimize order to maximize cache hits and minimize rebuilds",
+      "tldr": "Docker caches steps. Order your steps to avoid re-doing work and speed up builds",
         "explainAgain": "Like stacking boxes: put heavy, stable boxes (dependencies) at the bottom, light changing boxes (your code) on top",
         "example": "Copy requirements.txt first, install dependencies, THEN copy your code. This way code changes don't invalidate dependency cache",
         "exercise": "Reorder instructions and toggle optimization flags to hit size and time targets",
@@ -112,12 +114,13 @@
     {
       "id": 3,
       "title": "Pipeline Architect",
-      "description": "Design a CI/CD pipeline by connecting job nodes and configuring YAML",
+      "description": "Set up an automated flow that runs tests, builds your app, and gets it ready to ship",
       "intro": {
         "what": "CI/CD is Continuous Integration/Deployment - robots that test & deploy your code automatically when you push to GitHub",
-        "why": "Catches bugs before production, ensures code is always deployable, automates boring tasks",
+        "why": "It catches bugs early, keeps main stable, and saves you from manual, error-prone steps",
         "where": "`.github/workflows/` folder (GitHub Actions), `.gitlab-ci.yml` (GitLab), or cloud platforms",
-        "how": "Push code → pipeline runs tests → builds Docker image → deploys to staging → you merge to prod"
+        "how": "Push code → pipeline runs tests → builds Docker image → deploys to staging → you merge to prod",
+        "purpose": "See how common pipeline steps fit together so your code is tested and build-ready on every push."
       },
       "difficulty": {
         "beginner": { "hints": 5, "nodes": 4 },
@@ -125,7 +128,7 @@
         "advanced": { "hints": 1, "nodes": 6 }
       },
       "teaching": {
-        "tldr": "CI/CD pipelines automate testing, building, and deploying your code",
+      "tldr": "Pipelines automate test → build → (optional) deploy so your code is always ready",
         "explainAgain": "Like an assembly line: code goes in → tests run → if tests pass → build image → deploy to staging → manual approval → deploy to prod",
         "example": "GitHub Actions workflow: on push → checkout code → setup Python → install deps → run tests → build Docker → push to registry",
         "exercise": "Connect job nodes in the right order and configure each with proper YAML",
@@ -159,12 +162,13 @@
     {
       "id": 4,
       "title": "Log Detective",
-      "description": "Debug a failing CI pipeline by analyzing logs and identifying errors",
+      "description": "Practice reading CI logs so you can quickly find and fix build/test failures",
       "intro": {
         "what": "CI logs are text output showing everything your pipeline did - tests, builds, errors",
-        "why": "When builds fail, logs tell you exactly what broke and where",
+        "why": "When builds fail, logs tell you what broke and where to look in your code or config",
         "where": "GitHub Actions tab, GitLab CI/CD section, or your CI platform dashboard",
-        "how": "Pipeline fails → open logs → search for 'Error' or red lines → fix the issue → push again"
+        "how": "Pipeline fails → open logs → search for 'Error' or red lines → fix the issue → push again",
+        "purpose": "Build confidence reading noisy logs and extracting the one or two messages that matter."
       },
       "difficulty": {
         "beginner": { "hints": 5, "errors": 3 },
@@ -172,7 +176,7 @@
         "advanced": { "hints": 1, "errors": 5 }
       },
       "teaching": {
-        "tldr": "CI logs are your debugging lifeline - they show exactly what went wrong and where",
+      "tldr": "CI logs are your debugging guide—they show what went wrong and where to look",
         "explainAgain": "Like a detective story: follow the clues (error messages) to find the culprit (buggy code)",
         "example": "ModuleNotFoundError: No module named 'requests' → check requirements.txt → add missing dependency → push fix",
         "exercise": "Read through simulated CI logs and identify all the errors causing the pipeline to fail",
@@ -242,12 +246,13 @@
     {
       "id": 5,
       "title": "Deploy or Die",
-      "description": "Configure deployment settings and successfully deploy to production",
+      "description": "Fill in a few key settings so your built app can run in the cloud",
       "intro": {
         "what": "Deployment is taking your built Docker image and running it on a server (cloud) where users can access it",
-        "why": "Need secrets (passwords), right environment (staging vs prod), version tags, rollback plans",
+        "why": "You need a couple of basics: where to pull the image, secrets, and env settings",
         "where": "Cloud platforms: Azure, AWS, Render, Heroku, Docker Hub + orchestrators like Kubernetes",
-        "how": "Merge PR → pipeline builds image → tags it with version → pushes to registry → cloud platform pulls & runs it"
+        "how": "Merge PR → pipeline builds image → tags it → pushes to registry → cloud pulls & runs it",
+        "purpose": "Understand the minimum info a developer usually provides so a simple app can go live."
       },
       "difficulty": {
         "beginner": { "hints": 5, "fields": 6 },
@@ -255,7 +260,7 @@
         "advanced": { "hints": 1, "fields": 10 }
       },
       "teaching": {
-        "tldr": "Deployment is the final step - getting your containerized app running in production",
+      "tldr": "Deployment is getting your containerized app running on a server for users",
         "explainAgain": "Like moving into a new house: you need the right address (registry), keys (secrets), utilities (environment), and insurance (rollback plan)",
         "example": "Docker Hub registry → tag image with version → push → cloud platform pulls image → runs with environment variables → app is live",
         "exercise": "Fill in deployment configuration forms with correct values for registry, secrets, and environment settings",
@@ -295,12 +300,13 @@
     {
       "id": 6,
       "title": "Outage Simulator",
-      "description": "Respond to a production incident by choosing the right recovery strategy",
+      "description": "Learn a simple playbook for what to do when production breaks",
       "intro": {
         "what": "Incident response is what you do when production breaks - diagnose, fix, and restore service FAST",
-        "why": "Bugs slip through, dependencies fail, servers crash - it's normal, response speed matters",
+        "why": "Bugs happen. What matters is restoring service safely and quickly",
         "where": "Monitoring dashboards (Grafana, Datadog), alert systems (PagerDuty), and your CI pipeline",
-        "how": "Get paged → check metrics → decide: rollback (safe, slow), hotfix (risky, fast), or redeploy (test fix first)"
+        "how": "Get alert → check health → choose rollback, hotfix, or redeploy based on risk",
+        "purpose": "Pick a safe, developer-friendly response when things go wrong, without deep ops knowledge."
       },
       "difficulty": {
         "beginner": { "hints": 5, "timeLimit": 300 },
@@ -308,7 +314,7 @@
         "advanced": { "hints": 1, "timeLimit": 180 }
       },
       "teaching": {
-        "tldr": "When production breaks, you need a systematic approach to restore service quickly",
+      "tldr": "Use a simple, repeatable process to restore service safely and quickly",
         "explainAgain": "Like emergency response: assess situation → choose strategy → execute → verify fix → learn from incident",
         "example": "Service down → check logs → see memory leak → choose rollback (safe) → execute → service restored → post-incident review",
         "exercise": "Monitor service health and choose the right response strategy based on the situation",

@@ -60,6 +60,12 @@ const IntroScreen: React.FC = () => {
           transition={{ delay: 0.2 }}
           className="bg-blue-50 rounded-xl p-6 mb-8"
         >
+          <div className="mb-6 bg-white rounded-lg p-4 border-l-4 border-blue-500">
+            <h2 className="text-xl font-bold text-blue-800 mb-2">
+              🎯 Purpose
+            </h2>
+            <p className="text-blue-700">{mission.intro.purpose}</p>
+          </div>
           <h2 className="text-2xl font-bold text-blue-800 mb-4 text-center">
             🎯 What You'll Learn
           </h2>
