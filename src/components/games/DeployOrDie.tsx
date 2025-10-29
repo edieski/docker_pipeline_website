@@ -303,20 +303,66 @@ const DeployOrDie: React.FC = () => {
 
   const validateDeployment = () => {
     const errors = Object.keys(validationErrors).length
-    let score = 100
+    let score = 0
+    let feedback: string[] = []
     
-    // Deduct points for errors
-    score -= errors * 10
+    // Base points for required fields
+    if (config.imageTag) score += 20
+    else feedback.push("❌ Image tag is required")
+    
+    if (config.port && config.port >= 1 && config.port <= 65535) score += 20
+    else feedback.push("❌ Port must be between 1 and 65535")
+    
+    if (config.environment) score += 20
+    else feedback.push("❌ Environment is required")
+    
+    if (config.replicas && config.replicas >= 1) score += 20
+    else feedback.push("❌ At least 1 replica is required")
+    
+    if (config.resources.cpu) score += 10
+    else feedback.push("❌ CPU limit is required")
+    
+    if (config.resources.memory) score += 10
+    else feedback.push("❌ Memory limit is required")
     
     // Bonus points for good practices
-    if (config.replicas >= 2) score += 10 // High availability
-    if (config.healthCheck.enabled) score += 10 // Monitoring
-    if (config.environmentVariables.length > 0) score += 5 // Configuration
-    if (config.secrets.length > 0) score += 5 // Security
+    if (config.replicas >= 2) {
+      score += 10
+      feedback.push("✅ Great! Using 2+ replicas for high availability")
+    }
+    
+    if (config.healthCheck.enabled) {
+      score += 10
+      feedback.push("✅ Excellent! Health checks enabled for monitoring")
+    }
+    
+    if (config.environmentVariables.length > 0) {
+      score += 5
+      feedback.push("✅ Good! Using environment variables for configuration")
+    }
+    
+    if (config.secrets.length > 0) {
+      score += 5
+      feedback.push("✅ Perfect! Using secrets for sensitive data")
+    }
+    
+    // Additional hints for common mistakes
+    if (config.port && (config.port < 1024 || config.port > 49151)) {
+      feedback.push("💡 Tip: Ports 1024-49151 are recommended for applications")
+    }
+    
+    if (config.resources.cpu && config.resources.cpu === '100m') {
+      feedback.push("💡 Tip: Consider using more CPU for production workloads")
+    }
+    
+    if (config.resources.memory && config.resources.memory === '128Mi') {
+      feedback.push("💡 Tip: Consider using more memory for production workloads")
+    }
     
     return {
-      success: errors === 0 && score >= 70,
-      score: Math.max(0, Math.min(100, score))
+      success: score >= 80,
+      score: Math.max(0, Math.min(100, score)),
+      feedback
     }
   }
 
@@ -373,6 +419,18 @@ const DeployOrDie: React.FC = () => {
             </div>
           </div>
           
+          {/* Detailed Feedback */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">Deployment Feedback</h3>
+            <div className="space-y-2">
+              {validation.feedback.map((item, index) => (
+                <div key={index} className="text-sm">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+          
           {validation.success ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <p className="text-green-800">
@@ -382,17 +440,27 @@ const DeployOrDie: React.FC = () => {
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
               <p className="text-yellow-800">
-                💡 Remember: Always configure proper resource limits, health checks, and security settings for production deployments.
+                💡 Review the feedback above to improve your deployment configuration. Focus on the required fields first!
               </p>
             </div>
           )}
           
-          <button
-            onClick={handleNextMission}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Continue to Mission Select
-          </button>
+          <div className="flex space-x-4 justify-center">
+            {!validation.success && (
+              <button
+                onClick={() => setGameCompleted(false)}
+                className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                Try Again
+              </button>
+            )}
+            <button
+              onClick={handleNextMission}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {validation.success ? 'Continue to Mission Select' : 'Skip to Mission Select'}
+            </button>
+          </div>
         </motion.div>
       </div>
     )
@@ -599,27 +667,53 @@ const DeployOrDie: React.FC = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Image:</span>
-                  <span className="font-mono">{config.imageTag || 'Not set'}</span>
+                  <span className={`font-mono ${config.imageTag ? 'text-green-600' : 'text-red-500'}`}>
+                    {config.imageTag || 'Not set'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Port:</span>
-                  <span className="font-mono">{config.port || 'Not set'}</span>
+                  <span className={`font-mono ${config.port && config.port >= 1 && config.port <= 65535 ? 'text-green-600' : 'text-red-500'}`}>
+                    {config.port || 'Not set'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Environment:</span>
-                  <span className="font-mono">{config.environment || 'Not set'}</span>
+                  <span className={`font-mono ${config.environment ? 'text-green-600' : 'text-red-500'}`}>
+                    {config.environment || 'Not set'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Replicas:</span>
-                  <span className="font-mono">{config.replicas}</span>
+                  <span className={`font-mono ${config.replicas && config.replicas >= 1 ? 'text-green-600' : 'text-red-500'}`}>
+                    {config.replicas || 'Not set'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">CPU:</span>
-                  <span className="font-mono">{config.resources.cpu || 'Not set'}</span>
+                  <span className={`font-mono ${config.resources.cpu ? 'text-green-600' : 'text-red-500'}`}>
+                    {config.resources.cpu || 'Not set'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Memory:</span>
-                  <span className="font-mono">{config.resources.memory || 'Not set'}</span>
+                  <span className={`font-mono ${config.resources.memory ? 'text-green-600' : 'text-red-500'}`}>
+                    {config.resources.memory || 'Not set'}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Progress Indicator */}
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Configuration Progress</span>
+                  <span>{Math.round((Object.keys(validationErrors).length === 0 ? 100 : (6 - Object.keys(validationErrors).length) / 6 * 100))}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.round((Object.keys(validationErrors).length === 0 ? 100 : (6 - Object.keys(validationErrors).length) / 6 * 100))}%` }}
+                  ></div>
                 </div>
               </div>
             </div>

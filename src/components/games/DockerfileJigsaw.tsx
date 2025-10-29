@@ -158,23 +158,50 @@ const DockerfileJigsaw: React.FC = () => {
       .filter(block => block !== null)
       .map(block => block!.content)
     
-    // Check if all required directives are present and in correct order
     let score = 0
+    let feedback: string[] = []
     let correctCount = 0
     
-    for (let i = 0; i < Math.min(requiredOrder.length, currentOrder.length); i++) {
-      if (currentOrder[i]?.includes(requiredOrder[i])) {
-        correctCount++
-        score += 20
+    // Check each position
+    for (let i = 0; i < requiredOrder.length; i++) {
+      if (i < currentOrder.length) {
+        if (currentOrder[i]?.includes(requiredOrder[i])) {
+          correctCount++
+          score += 20
+          feedback.push(`✅ Step ${i + 1}: Correct! "${currentOrder[i]}"`)
+        } else {
+          feedback.push(`❌ Step ${i + 1}: Expected "${requiredOrder[i]}", got "${currentOrder[i] || 'empty'}"`)
+        }
+      } else {
+        feedback.push(`❌ Step ${i + 1}: Missing "${requiredOrder[i]}"`)
       }
+    }
+    
+    // Check for extra blocks
+    if (currentOrder.length > requiredOrder.length) {
+      feedback.push(`⚠️ You have ${currentOrder.length - requiredOrder.length} extra block(s)`)
     }
     
     // Bonus points for having all blocks
     if (droppedBlocks.every(block => block !== null)) {
-      score += 20
+      score += 10
+      feedback.push(`✅ All slots filled!`)
     }
     
-    return { score, correctCount, total: requiredOrder.length }
+    // Provide hints for common mistakes
+    if (correctCount === 0) {
+      feedback.push(`💡 Hint: Start with FROM (base image), then COPY (files), then RUN (commands)`)
+    } else if (correctCount < requiredOrder.length / 2) {
+      feedback.push(`💡 Hint: Remember the order: FROM → COPY → RUN → EXPOSE → CMD`)
+    }
+    
+    return { 
+      score: Math.max(0, Math.min(100, score)), 
+      correctCount, 
+      total: requiredOrder.length,
+      feedback,
+      success: correctCount === requiredOrder.length
+    }
   }
 
   const handleSubmit = () => {
@@ -182,7 +209,7 @@ const DockerfileJigsaw: React.FC = () => {
     const timeSpent = Date.now() - startTime
     
     updateMissionProgress(1, {
-      completed: validation.correctCount === validation.total,
+      completed: validation.success,
       timeSpent,
       hintsUsed,
       score: validation.score
@@ -190,7 +217,7 @@ const DockerfileJigsaw: React.FC = () => {
     
     setGameCompleted(true)
     
-    if (validation.correctCount === validation.total) {
+    if (validation.success) {
       unlockNextMission()
     }
   }
@@ -214,11 +241,11 @@ const DockerfileJigsaw: React.FC = () => {
           className="game-container max-w-2xl w-full p-8 text-center"
         >
           <div className="text-6xl mb-6">
-            {validation.correctCount === validation.total ? '🎉' : '😅'}
+            {validation.success ? '🎉' : '😅'}
           </div>
           
           <h1 className="text-3xl font-bold text-gray-800 mb-4">
-            {validation.correctCount === validation.total ? 'Mission Complete!' : 'Good Try!'}
+            {validation.success ? 'Mission Complete!' : 'Good Try!'}
           </h1>
           
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
@@ -243,7 +270,19 @@ const DockerfileJigsaw: React.FC = () => {
             </div>
           </div>
           
-          {validation.correctCount === validation.total ? (
+          {/* Detailed Feedback */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">Dockerfile Feedback</h3>
+            <div className="space-y-2">
+              {validation.feedback.map((item, index) => (
+                <div key={index} className="text-sm">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {validation.success ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <p className="text-green-800">
                 🎯 Perfect! You've mastered Dockerfile basics. You understand how to structure container builds.
@@ -252,17 +291,27 @@ const DockerfileJigsaw: React.FC = () => {
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
               <p className="text-yellow-800">
-                💡 Close! The correct order is: FROM → WORKDIR → COPY requirements.txt → RUN pip install → COPY . → CMD
+                💡 Review the feedback above to improve your Dockerfile. Remember: FROM → COPY → RUN → EXPOSE → CMD
               </p>
             </div>
           )}
           
-          <button
-            onClick={handleNextMission}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Continue to Mission Select
-          </button>
+          <div className="flex space-x-4 justify-center">
+            {!validation.success && (
+              <button
+                onClick={() => setGameCompleted(false)}
+                className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                Try Again
+              </button>
+            )}
+            <button
+              onClick={handleNextMission}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {validation.success ? 'Continue to Mission Select' : 'Skip to Mission Select'}
+            </button>
+          </div>
         </motion.div>
       </div>
     )

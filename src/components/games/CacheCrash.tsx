@@ -258,10 +258,11 @@ const CacheCrash: React.FC = () => {
   const validateOptimization = () => {
     const instructions = droppedInstructions.filter(inst => inst !== null) as DockerInstruction[]
     
-    // Check for proper layer ordering
     let score = 0
+    let feedback: string[] = []
     let correctOrder = 0
     
+    // Check for proper layer ordering
     const hasRequirementsFirst = instructions.some(inst => 
       inst.id === 'copy-reqs' && 
       instructions.indexOf(inst) < instructions.findIndex(i => i.id === 'copy-app')
@@ -275,16 +276,28 @@ const CacheCrash: React.FC = () => {
     if (hasRequirementsFirst) {
       correctOrder++
       score += 30
+      feedback.push("✅ Great! Copying requirements.txt before application code")
+    } else {
+      feedback.push("❌ Copy requirements.txt BEFORE copying application code for better caching")
     }
     
     if (hasDependenciesBeforeCode) {
       correctOrder++
       score += 30
+      feedback.push("✅ Perfect! Installing dependencies before copying application code")
+    } else {
+      feedback.push("❌ Install dependencies BEFORE copying application code")
     }
     
     // Check optimization flags
     const optimizationScore = appliedOptimizations.length * 10
     score += optimizationScore
+    
+    if (appliedOptimizations.length > 0) {
+      feedback.push(`✅ Applied ${appliedOptimizations.length} optimization(s) (+${optimizationScore} points)`)
+    } else {
+      feedback.push("💡 Try applying optimization flags like --no-cache or --compress")
+    }
     
     // Check if targets are met
     const targetSize = difficultySettings.targetSize || 400
@@ -292,17 +305,30 @@ const CacheCrash: React.FC = () => {
     
     if (imageSize <= targetSize) {
       score += 20
+      feedback.push(`✅ Image size ${imageSize}MB ≤ ${targetSize}MB target`)
+    } else {
+      feedback.push(`❌ Image size ${imageSize}MB > ${targetSize}MB target`)
     }
     
     if (buildTime <= targetTime) {
       score += 20
+      feedback.push(`✅ Build time ${buildTime}s ≤ ${targetTime}s target`)
+    } else {
+      feedback.push(`❌ Build time ${buildTime}s > ${targetTime}s target`)
+    }
+    
+    // Additional hints
+    if (score < 50) {
+      feedback.push("💡 Hint: Order matters! Dependencies first, then application code")
     }
     
     return { 
-      score: Math.min(score, 100), 
+      score: Math.max(0, Math.min(100, score)), 
       correctOrder, 
       total: 2,
-      targetsMet: imageSize <= targetSize && buildTime <= targetTime
+      targetsMet: imageSize <= targetSize && buildTime <= targetTime,
+      feedback,
+      success: imageSize <= targetSize && buildTime <= targetTime && correctOrder === 2
     }
   }
 
@@ -311,7 +337,7 @@ const CacheCrash: React.FC = () => {
     const timeSpent = Date.now() - startTime
     
     updateMissionProgress(2, {
-      completed: validation.targetsMet && validation.correctOrder === validation.total,
+      completed: validation.success,
       timeSpent,
       hintsUsed,
       score: validation.score
@@ -319,7 +345,7 @@ const CacheCrash: React.FC = () => {
     
     setGameCompleted(true)
     
-    if (validation.targetsMet && validation.correctOrder === validation.total) {
+    if (validation.success) {
       unlockNextMission()
     }
   }
