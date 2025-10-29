@@ -5,12 +5,47 @@ const generatePlayerId = () => {
   return Math.random().toString(36).substr(2, 9);
 };
 
+const SHARED_STORAGE_KEY = 'devops-escape-room-all-players'
+
+// Helper functions to manage shared player storage
+export const savePlayerToSharedStorage = (player: Player) => {
+  try {
+    const stored = localStorage.getItem(SHARED_STORAGE_KEY)
+    const allPlayers: Record<string, { player: Player; lastUpdate: number }> = stored 
+      ? JSON.parse(stored) 
+      : {}
+    
+    allPlayers[player.id] = {
+      player: {
+        ...player,
+        // Add timestamp to track when this was last updated
+      },
+      lastUpdate: Date.now()
+    }
+    
+    localStorage.setItem(SHARED_STORAGE_KEY, JSON.stringify(allPlayers))
+  } catch (e) {
+    console.error('Failed to save player to shared storage:', e)
+  }
+}
+
+export const getAllPlayersFromSharedStorage = (): Record<string, { player: Player; lastUpdate: number }> => {
+  try {
+    const stored = localStorage.getItem(SHARED_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : {}
+  } catch (e) {
+    console.error('Failed to load players from shared storage:', e)
+    return {}
+  }
+}
+
 interface MissionProgress {
   missionId: number;
   completed: boolean;
   timeSpent: number;
   hintsUsed: number;
   score: number;
+  quizScore?: number;
 }
 
 export interface Player {
@@ -88,30 +123,45 @@ export const useGameStore = create<GameState>()(
       
       generateProgressToken: () => {
         const state = get();
+        // Include full player data if available
         const tokenData = {
           playerId: state.playerId,
           difficulty: state.difficulty,
           completedMissions: state.completedMissions,
           hintsUsed: state.hintsUsed,
           timeSpent: state.timeSpent,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          // Include full player progress if player exists
+          player: state.player ? {
+            id: state.player.id,
+            name: state.player.name,
+            difficulty: state.player.difficulty,
+            currentMission: state.player.currentMission,
+            progress: state.player.progress,
+            totalTimeSpent: state.player.totalTimeSpent
+          } : null
         };
         return btoa(JSON.stringify(tokenData));
       },
       
-      createPlayer: (name: string) => set((state) => ({
-        player: {
+      createPlayer: (name: string) => {
+        const state = get();
+        const newPlayer: Player = {
           id: state.playerId,
           name,
           difficulty: state.difficulty,
           currentMission: 1,
           progress: [],
           totalTimeSpent: 0
-        }
-      })),
+        };
+        set({ player: newPlayer });
+        // Auto-save to shared storage
+        savePlayerToSharedStorage(newPlayer);
+      },
       
-      updateMissionProgress: (missionId: number, progress: Partial<MissionProgress>) => set((state) => {
-        if (!state.player) return state;
+      updateMissionProgress: (missionId: number, progress: Partial<MissionProgress>) => {
+        const state = get();
+        if (!state.player) return;
         
         const existingProgressIndex = state.player.progress.findIndex(p => p.missionId === missionId);
         const existingProgress = existingProgressIndex >= 0 ? state.player.progress[existingProgressIndex] : {
@@ -127,25 +177,30 @@ export const useGameStore = create<GameState>()(
           ? state.player.progress.map((p, i) => i === existingProgressIndex ? updatedProgress : p)
           : [...state.player.progress, updatedProgress];
         
-        return {
-          player: {
-            ...state.player,
-            progress: newProgress,
-            totalTimeSpent: state.player.totalTimeSpent + (progress.timeSpent || 0)
-          }
+        const updatedPlayer: Player = {
+          ...state.player,
+          progress: newProgress,
+          totalTimeSpent: state.player.totalTimeSpent + (progress.timeSpent || 0)
         };
-      }),
-      
-      unlockNextMission: () => set((state) => {
-        if (!state.player) return state;
         
-        return {
-          player: {
-            ...state.player,
-            currentMission: Math.min(state.player.currentMission + 1, 6)
-          }
+        set({ player: updatedPlayer });
+        // Auto-save to shared storage
+        savePlayerToSharedStorage(updatedPlayer);
+      },
+      
+      unlockNextMission: () => {
+        const state = get();
+        if (!state.player) return;
+        
+        const updatedPlayer: Player = {
+          ...state.player,
+          currentMission: Math.min(state.player.currentMission + 1, 6)
         };
-      }),
+        
+        set({ player: updatedPlayer });
+        // Auto-save to shared storage
+        savePlayerToSharedStorage(updatedPlayer);
+      },
       
       resetGame: () => set({
         playerId: generatePlayerId(),

@@ -6,11 +6,10 @@ const mission1 = missions.missions.find((m) => m.id === 1)!
 
 describe('Dockerfile validation (UUID-based)', () => {
   it('passes when placed order matches required order (using UUIDs)', () => {
-    const requiredLabels = mission1.validation!.requiredOrder
+    const requiredLabels = mission1.validation!.requiredOrder!
     const requiredUUIDs = mapRequiredOrderToUUID(requiredLabels)
 
     // Build placed sequence by classifying the exact instructions that correspond
-    const instructions = mission1.validation!.blocks
     const picked = [
       'FROM python:3.12-slim',
       'WORKDIR /app',
@@ -29,7 +28,7 @@ describe('Dockerfile validation (UUID-based)', () => {
   })
 
   it('fails when order is incorrect', () => {
-    const requiredLabels = mission1.validation!.requiredOrder
+    const requiredLabels = mission1.validation!.requiredOrder!
     // swap first two
     const wrongPlaced = [
       classify('WORKDIR /app'),

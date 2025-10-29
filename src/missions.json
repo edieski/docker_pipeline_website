@@ -53,7 +53,57 @@
           "USER app",
           "HEALTHCHECK CMD curl -f http://localhost:8000/health"
         ]
-      }
+      },
+      "quiz": [
+        {
+          "question": "What does the FROM directive do in a Dockerfile?",
+          "options": [
+            "Starts the application",
+            "Specifies the base image to build from",
+            "Copies files into the container",
+            "Opens network ports"
+          ],
+          "correctAnswer": 1,
+          "explanation": "FROM specifies the base image - like choosing what operating system and tools your container starts with. It's always the first line.",
+          "wrongAnswerExplanations": {
+            "0": "CMD starts the application, not FROM. FROM comes first and sets up the foundation.",
+            "2": "COPY copies files. FROM is different - it picks the base image.",
+            "3": "EXPOSE opens ports. FROM is the foundation that comes before everything else."
+          }
+        },
+        {
+          "question": "What's the correct order for a basic Dockerfile?",
+          "options": [
+            "RUN → COPY → FROM → CMD",
+            "FROM → WORKDIR → COPY → RUN → CMD",
+            "CMD → EXPOSE → COPY → FROM",
+            "FROM → CMD → COPY → RUN"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Start with FROM (base image), set WORKDIR (where files go), COPY files, RUN commands to install/configure, then CMD (start command).",
+          "wrongAnswerExplanations": {
+            "0": "FROM must come first - you need a base image before doing anything else.",
+            "2": "CMD comes last because it starts the app. First you need FROM, then setup steps.",
+            "3": "You need to COPY files and RUN setup commands before starting the app with CMD."
+          }
+        },
+        {
+          "question": "What does CMD do?",
+          "options": [
+            "Runs commands during build time",
+            "Starts the application when the container runs",
+            "Installs dependencies",
+            "Copies files into the container"
+          ],
+          "correctAnswer": 1,
+          "explanation": "CMD defines the command that runs when the container starts. It's what makes your app actually run.",
+          "wrongAnswerExplanations": {
+            "0": "RUN runs commands during build. CMD runs when the container starts.",
+            "2": "RUN pip install installs dependencies. CMD starts your app.",
+            "3": "COPY copies files. CMD runs the command to start your application."
+          }
+        }
+      ]
     },
     {
       "id": 2,
@@ -109,7 +159,57 @@
           "multi-stage build",
           ".dockerignore"
         ]
-      }
+      },
+      "quiz": [
+        {
+          "question": "Why should you copy requirements.txt BEFORE copying your code?",
+          "options": [
+            "It's faster",
+            "Docker caches layers - if requirements.txt doesn't change, pip install won't rerun",
+            "It's required by Docker",
+            "It makes the image smaller"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Docker caches each layer. If requirements.txt hasn't changed, Docker reuses the cached layer instead of reinstalling dependencies. This saves time!",
+          "wrongAnswerExplanations": {
+            "0": "It's not just faster - it's about Docker's layer caching system that avoids unnecessary work.",
+            "2": "It's not required - it's a best practice to optimize build speed through caching.",
+            "3": "Size stays the same, but build time is much faster because dependencies don't reinstall on every code change."
+          }
+        },
+        {
+          "question": "What happens if you copy your code BEFORE installing dependencies?",
+          "options": [
+            "Nothing, it works the same",
+            "Every code change invalidates the dependency cache, slowing builds",
+            "The image becomes smaller",
+            "Docker won't build it"
+          ],
+          "correctAnswer": 1,
+          "explanation": "If code changes frequently, copying it early means Docker has to reinstall dependencies every time you change code, making builds slow.",
+          "wrongAnswerExplanations": {
+            "0": "It does work, but it's much slower because dependencies rebuild on every code change.",
+            "2": "Image size stays the same, but build time increases significantly.",
+            "3": "Docker will build it, but you're missing out on optimization benefits."
+          }
+        },
+        {
+          "question": "What does --no-cache-dir do in pip install?",
+          "options": [
+            "Prevents Docker from caching",
+            "Skips pip's cache directory to reduce image size",
+            "Installs faster",
+            "Forces reinstall of packages"
+          ],
+          "correctAnswer": 1,
+          "explanation": "--no-cache-dir tells pip not to keep a cache directory, which reduces the final image size since pip's cache isn't needed in the container.",
+          "wrongAnswerExplanations": {
+            "0": "It prevents pip from caching, not Docker. Docker layer caching still works.",
+            "2": "It doesn't speed up installation - it actually makes pip slightly slower but reduces image size.",
+            "3": "It doesn't force reinstall - it just skips pip's cache directory to save space."
+          }
+        }
+      ]
     },
     {
       "id": 3,
@@ -157,7 +257,57 @@
           "push": "# Push job publishes the image to registry\nname: Push\n# Must run after Build job\nneeds: build\n# Runner machine\nruns-on: ubuntu-latest\n# Steps\nsteps:\n  # Re-use build action to push the image\n  - uses: docker/build-push-action@v6\n    with:\n      # Push to the registry in this job\n      push: true\n      # Same tag used in Build job\n      tags: myapp:${{ github.sha }}",
           "deploy": "# Deploy job simulates deployment to staging\nname: Deploy\n# Deploy after image is pushed\nneeds: push\n# Runner\nruns-on: ubuntu-latest\n# Steps\nsteps:\n  # Replace with real deployment script in production\n  - run: echo 'Deploying to staging'"
         }
-      }
+      },
+      "quiz": [
+        {
+          "question": "What does the 'needs' keyword do in a GitHub Actions job?",
+          "options": [
+            "It's optional and does nothing",
+            "It makes the job wait for other jobs to finish successfully first",
+            "It runs jobs in parallel",
+            "It skips the job if others fail"
+          ],
+          "correctAnswer": 1,
+          "explanation": "needs defines dependencies. If Job B needs Job A, Job B waits for Job A to complete successfully before starting.",
+          "wrongAnswerExplanations": {
+            "0": "needs is important - it controls the order jobs run in. Without it, jobs run in parallel.",
+            "2": "Without needs, jobs run in parallel. needs makes them sequential.",
+            "3": "If a needed job fails, the dependent job is skipped, but that's a side effect, not the purpose."
+          }
+        },
+        {
+          "question": "What's the typical order of a CI/CD pipeline?",
+          "options": [
+            "Deploy → Build → Test",
+            "Test → Build → Push → Deploy",
+            "Build → Deploy → Test",
+            "Push → Test → Build"
+          ],
+          "correctAnswer": 1,
+          "explanation": "First test your code, then build the image if tests pass, push it to a registry, then deploy. This catches problems early.",
+          "wrongAnswerExplanations": {
+            "0": "You need to test before deploying! Testing should happen first.",
+            "2": "Testing must come before building and deploying to catch bugs early.",
+            "3": "You need to test first, then build, then push, then deploy."
+          }
+        },
+        {
+          "question": "What does 'runs-on: ubuntu-latest' specify?",
+          "options": [
+            "The Docker image to use",
+            "The operating system of the runner machine",
+            "The Python version",
+            "Where to deploy"
+          ],
+          "correctAnswer": 1,
+          "explanation": "runs-on specifies the runner environment - the operating system where your job will execute. ubuntu-latest means the latest Ubuntu Linux.",
+          "wrongAnswerExplanations": {
+            "0": "The Docker image is specified in your Dockerfile. runs-on is about the runner machine.",
+            "2": "Python version is set with actions/setup-python, not runs-on.",
+            "3": "Deployment target is configured separately. runs-on is about where the job runs."
+          }
+        }
+      ]
     },
     {
       "id": 4,
@@ -241,7 +391,57 @@
           "ERROR: Could not find a version that satisfies the requirement fastapi==99.9.9",
           "FileNotFoundError: [Errno 2] No such file or directory: 'requirements.txt'"
         ]
-      }
+      },
+      "quiz": [
+        {
+          "question": "What does 'ModuleNotFoundError: No module named X' mean?",
+          "options": [
+            "The file doesn't exist",
+            "A Python package is missing from the environment",
+            "The code has a syntax error",
+            "The test is wrong"
+          ],
+          "correctAnswer": 1,
+          "explanation": "ModuleNotFoundError means Python can't find a package that your code is trying to import. Usually fixed by adding it to requirements.txt.",
+          "wrongAnswerExplanations": {
+            "0": "FileNotFoundError means a file doesn't exist. ModuleNotFoundError is about missing Python packages.",
+            "2": "Syntax errors show different messages. ModuleNotFoundError is specifically about missing imports.",
+            "3": "The test might be fine - the problem is that the required package isn't installed."
+          }
+        },
+        {
+          "question": "Where should you look first when CI logs show an error?",
+          "options": [
+            "Scroll to the top of the logs",
+            "Look for lines containing 'ERROR', 'FAILED', or 'Exception'",
+            "Check the deployment section",
+            "Ignore the logs and check your code"
+          ],
+          "correctAnswer": 1,
+          "explanation": "CI logs can be long, but error messages usually contain keywords like ERROR, FAILED, or Exception. Use Ctrl+F to search for these.",
+          "wrongAnswerExplanations": {
+            "0": "Errors usually appear near the end where the failure happened, not at the top.",
+            "2": "Deployment happens after build/test. Check build/test errors first.",
+            "3": "Logs tell you exactly what went wrong - they're your best debugging tool!"
+          }
+        },
+        {
+          "question": "If CI fails with 'ERROR: Could not find a version that satisfies the requirement', what's likely wrong?",
+          "options": [
+            "The package name is misspelled or version doesn't exist",
+            "Python version is wrong",
+            "The internet is down",
+            "The test is failing"
+          ],
+          "correctAnswer": 0,
+          "explanation": "This error usually means the package name is wrong, the version specified doesn't exist, or there's a typo in requirements.txt.",
+          "wrongAnswerExplanations": {
+            "1": "Wrong Python version would show a different error. This is about package availability.",
+            "2": "If internet was down, you'd see a connection error, not a version error.",
+            "3": "This is a dependency installation error, not a test failure."
+          }
+        }
+      ]
     },
     {
       "id": 5,
@@ -295,7 +495,57 @@
           "environment": ["production", "staging", "development"],
           "deployment_strategy": ["rolling", "blue-green", "canary"]
         }
-      }
+      },
+      "quiz": [
+        {
+          "question": "What is a container registry?",
+          "options": [
+            "A place to store Docker images",
+            "A deployment platform",
+            "A CI/CD tool",
+            "A database"
+          ],
+          "correctAnswer": 0,
+          "explanation": "A registry (like Docker Hub, GitHub Container Registry) stores Docker images so they can be pulled and run on servers.",
+          "wrongAnswerExplanations": {
+            "1": "Registries store images, but deployment platforms (like AWS, Azure) pull from registries to run them.",
+            "2": "CI/CD builds and pushes images to registries, but registries themselves just store images.",
+            "3": "Databases store data. Registries store container images."
+          }
+        },
+        {
+          "question": "Why do you need environment variables in deployment?",
+          "options": [
+            "They're not needed",
+            "They configure the app for different environments (dev/staging/prod)",
+            "They make the app faster",
+            "They're just for debugging"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Environment variables let the same image run differently in dev vs staging vs production (different database URLs, API keys, etc).",
+          "wrongAnswerExplanations": {
+            "0": "Environment variables are essential - they configure how your app connects to databases, APIs, etc.",
+            "2": "They don't affect speed - they configure behavior and connections.",
+            "3": "While useful for debugging, they're primarily for configuring the app per environment."
+          }
+        },
+        {
+          "question": "What's the difference between 'latest' and a version tag like 'v1.0.0'?",
+          "options": [
+            "No difference",
+            "'latest' always points to the newest, version tags are fixed to a specific release",
+            "Version tags are faster",
+            "'latest' is for production only"
+          ],
+          "correctAnswer": 1,
+          "explanation": "'latest' is a moving target - it changes. Version tags like 'v1.0.0' pin to a specific build, which is safer for production.",
+          "wrongAnswerExplanations": {
+            "0": "They're very different - 'latest' updates automatically, versions are fixed.",
+            "2": "Performance is the same. It's about predictability and rollback safety.",
+            "3": "'latest' is actually riskier for production - use version tags for stability."
+          }
+        }
+      ]
     },
     {
       "id": 6,
@@ -363,7 +613,57 @@
           "warning": 50,
           "healthy": 80
         }
-      }
+      },
+      "quiz": [
+        {
+          "question": "What should you do first when production is down?",
+          "options": [
+            "Panic and deploy everything",
+            "Check health metrics and logs to understand what broke",
+            "Blame someone else",
+            "Wait and hope it fixes itself"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Always assess first - check logs, metrics, and health status to understand the problem before taking action.",
+          "wrongAnswerExplanations": {
+            "0": "Blindly deploying can make things worse. Understand the problem first.",
+            "2": "Blaming doesn't fix production. Focus on solving the issue.",
+            "3": "Production outages need action. Waiting rarely helps."
+          }
+        },
+        {
+          "question": "When should you use Rollback vs Hotfix?",
+          "options": [
+            "Always use hotfix - it's faster",
+            "Rollback when you know current version is broken; hotfix only if you understand the issue",
+            "They're the same thing",
+            "Always use rollback - it's safer"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Rollback is safest when you know the current version is broken. Hotfix is riskier but faster if you understand the issue.",
+          "wrongAnswerExplanations": {
+            "0": "Hotfix is risky - only use it if you understand the problem. Rollback is safer.",
+            "2": "They're very different - rollback reverts, hotfix patches. Choose based on situation.",
+            "3": "Rollback is safer, but if you understand the issue, a hotfix might be faster."
+          }
+        },
+        {
+          "question": "What's the goal of incident response?",
+          "options": [
+            "Find who to blame",
+            "Restore service quickly and safely",
+            "Deploy the latest code",
+            "Make sure everyone knows you're working"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The primary goal is restoring service safely and quickly. Post-incident review (not blame) helps prevent future issues.",
+          "wrongAnswerExplanations": {
+            "0": "Blaming doesn't help. Focus on fixing the issue.",
+            "2": "Deploying latest code might make it worse. Assess first, then act.",
+            "3": "Communication is good, but the goal is fixing the problem, not appearances."
+          }
+        }
+      ]
     }
   ]
 }

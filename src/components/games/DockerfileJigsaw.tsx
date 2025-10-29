@@ -5,6 +5,8 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { useGameStore } from '../../store/gameStore'
 import ConceptCard from '../ConceptCard'
+import MissionGuide from '../MissionGuide'
+import MissionQuiz from '../MissionQuiz'
 import missionsData from '../../missions.json'
 
 interface DockerBlock {
@@ -94,10 +96,11 @@ const DraggableBlock: React.FC<DraggableBlockProps> = ({ block }) => {
 
 const DockerfileJigsaw: React.FC = () => {
   const navigate = useNavigate()
-  const { player, updateMissionProgress, unlockNextMission } = useGameStore()
+  const { player, updateMissionProgress, unlockNextMission, generateProgressToken } = useGameStore()
   const [availableBlocks, setAvailableBlocks] = useState<DockerBlock[]>([])
   const [droppedBlocks, setDroppedBlocks] = useState<(DockerBlock | null)[]>([])
   const [gameCompleted, setGameCompleted] = useState(false)
+  const [showQuiz, setShowQuiz] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
   const [showValidation, setShowValidation] = useState(false)
@@ -284,9 +287,23 @@ const DockerfileJigsaw: React.FC = () => {
     
     setGameCompleted(true)
     
-    if (validation.success) {
+    if (validation.success && mission.quiz && mission.quiz.length > 0) {
+      setShowQuiz(true)
+    } else if (validation.success) {
       unlockNextMission()
     }
+  }
+
+  const handleQuizComplete = (_correctAnswers: number, quizScore: number) => {
+    updateMissionProgress(1, {
+      quizScore
+    })
+    setShowQuiz(false)
+    unlockNextMission()
+  }
+
+  const handleQuizSkip = () => {
+    setShowQuiz(false)
   }
 
   const handleHintUsed = () => {
@@ -295,6 +312,27 @@ const DockerfileJigsaw: React.FC = () => {
 
   const handleNextMission = () => {
     navigate('/')
+  }
+
+  const handleShareProgress = () => {
+    const token = generateProgressToken()
+    navigator.clipboard.writeText(token)
+    alert('Progress token copied to clipboard! Share this with your instructor.')
+  }
+
+  const handleGoHome = () => {
+    navigate('/')
+  }
+
+  if (showQuiz && mission.quiz && mission.quiz.length > 0) {
+    return (
+      <MissionQuiz
+        questions={mission.quiz as any}
+        missionTitle={mission.title}
+        onComplete={handleQuizComplete}
+        onSkip={handleQuizSkip}
+      />
+    )
   }
 
   if (gameCompleted) {
@@ -363,7 +401,34 @@ const DockerfileJigsaw: React.FC = () => {
             </div>
           )}
           
-          <div className="flex space-x-4 justify-center">
+          {/* Progress Token */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">📤 Share Your Progress</h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={generateProgressToken()}
+                className="flex-1 px-4 py-2 bg-white border border-purple-300 rounded-lg text-sm font-mono text-gray-700"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                onClick={handleShareProgress}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-xs text-gray-600 mt-2">Share this token with your instructor</p>
+          </div>
+
+          <div className="flex space-x-4 justify-center flex-wrap gap-2">
+            <button
+              onClick={handleGoHome}
+              className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              🏠 Home
+            </button>
             {!validation.success && (
               <button
                 onClick={() => setGameCompleted(false)}
@@ -391,13 +456,22 @@ const DockerfileJigsaw: React.FC = () => {
           {/* Header */}
           <div className="game-container p-6 mb-6">
             <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                  🧩 Mission 1: Dockerfile Jigsaw
-                </h1>
-                <p className="text-gray-600">
-                  Drag and drop the Docker directives to build a valid Dockerfile
-                </p>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleGoHome}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  title="Go to Home"
+                >
+                  🏠 Home
+                </button>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                    🧩 Mission 1: Dockerfile Jigsaw
+                  </h1>
+                  <p className="text-gray-600">
+                    Drag and drop the Docker directives to build a valid Dockerfile
+                  </p>
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-gray-500">Hints Used</div>
@@ -405,6 +479,9 @@ const DockerfileJigsaw: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Mission Guide */}
+          <MissionGuide mission={mission} />
 
           <div className="grid lg:grid-cols-2 gap-8">
             {/* Left Side - Available Commands */}

@@ -1,78 +1,63 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useGameStore, Player } from '../store/gameStore'
+import { Player, getAllPlayersFromSharedStorage } from '../store/gameStore'
 
 const InstructorDashboard: React.FC = () => {
-  const { parseProgressToken, generateProgressToken, setDifficulty, difficulty } = useGameStore()
   const [trackedPlayers, setTrackedPlayers] = useState<Player[]>([])
-  const [tokenInput, setTokenInput] = useState('')
-  const [nameInput, setNameInput] = useState('')
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [lastUpdateTimes, setLastUpdateTimes] = useState<Record<string, number>>({})
+  const [autoRefresh, setAutoRefresh] = useState(true)
 
-  const handleAddPlayer = () => {
-    if (!tokenInput.trim()) return
-
-    const tokenData = parseProgressToken(tokenInput.trim())
-    if (tokenData) {
-      // Map available fields from token
-      const completedMissions: number[] = Array.isArray((tokenData as any).completedMissions)
-        ? (tokenData as any).completedMissions
-        : []
-      const difficulty = (tokenData as any).difficulty || 'beginner'
-      const timeSpent = typeof (tokenData as any).timeSpent === 'number' ? (tokenData as any).timeSpent : 0
-
-      const progress = completedMissions.map((mid) => ({
-        missionId: mid,
-        completed: true,
-        timeSpent: 0,
-        hintsUsed: 0,
-        score: 0
-      }))
-
-      const nextMission = completedMissions.length > 0
-        ? Math.min(Math.max(...completedMissions) + 1, 6)
-        : 1
-
-      const player: Player = {
-        id: (tokenData as any).playerId,
-        name: nameInput.trim() || `Player ${((tokenData as any).playerId || 'xxxxxx').slice(0, 6)}`,
-        difficulty,
-        currentMission: nextMission,
-        progress,
-        totalTimeSpent: timeSpent
-      }
-      
-      setTrackedPlayers(prev => {
-        // Update existing player or add new one
-        const existingIndex = prev.findIndex(p => p.id === player.id)
-        if (existingIndex >= 0) {
-          const updated = [...prev]
-          updated[existingIndex] = player
-          return updated
-        } else {
-          return [...prev, player]
-        }
-      })
-      setTokenInput('')
-      setNameInput('')
-      setShowAddForm(false)
-    } else {
-      alert('Invalid progress token. Please check and try again.')
-    }
+  const loadPlayers = () => {
+    const allPlayersData = getAllPlayersFromSharedStorage()
+    const players: Player[] = []
+    const updateTimes: Record<string, number> = {}
+    
+    Object.values(allPlayersData).forEach(({ player, lastUpdate }) => {
+      players.push(player)
+      updateTimes[player.id] = lastUpdate
+    })
+    
+    // Sort by last update time (most recent first)
+    players.sort((a, b) => {
+      const timeA = updateTimes[a.id] || 0
+      const timeB = updateTimes[b.id] || 0
+      return timeB - timeA
+    })
+    
+    setTrackedPlayers(players)
+    setLastUpdateTimes(updateTimes)
   }
 
-  const handleGenerateTestToken = () => {
-    const token = generateProgressToken()
-    setTokenInput(token)
-    setShowAddForm(true)
-  }
+  // Load players on mount
+  useEffect(() => {
+    loadPlayers()
+  }, [])
+
+  // Auto-refresh every 2 seconds if enabled
+  useEffect(() => {
+    if (!autoRefresh) return
+    
+    const interval = setInterval(() => {
+      loadPlayers()
+    }, 2000)
+    
+    return () => clearInterval(interval)
+  }, [autoRefresh])
 
   const handleRemovePlayer = (playerId: string) => {
-    setTrackedPlayers(prev => prev.filter(p => p.id !== playerId))
+    const allPlayersData = getAllPlayersFromSharedStorage()
+    delete allPlayersData[playerId]
+    localStorage.setItem('devops-escape-room-all-players', JSON.stringify(allPlayersData))
+    loadPlayers()
   }
 
   const handleRenamePlayer = (playerId: string, newName: string) => {
-    setTrackedPlayers(prev => prev.map(p => p.id === playerId ? { ...p, name: newName } : p))
+    const allPlayersData = getAllPlayersFromSharedStorage()
+    if (allPlayersData[playerId]) {
+      allPlayersData[playerId].player.name = newName
+      localStorage.setItem('devops-escape-room-all-players', JSON.stringify(allPlayersData))
+      loadPlayers()
+    }
   }
 
   const exportProgress = () => {
@@ -130,31 +115,24 @@ const InstructorDashboard: React.FC = () => {
                 Track student progress in real-time
               </p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-4 items-center">
               <button
-                onClick={() => setShowAddForm(!showAddForm)}
+                onClick={() => {
+                  loadPlayers()
+                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                {showAddForm ? 'Cancel' : '+ Add Player'}
+                🔄 Refresh
               </button>
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">Test Difficulty:</label>
-                <select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value as 'beginner' | 'intermediate' | 'advanced')}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </div>
-              <button
-                onClick={handleGenerateTestToken}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                🧪 Generate Sample Token
-              </button>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm font-medium text-gray-700">Auto-refresh (2s)</span>
+              </label>
               {trackedPlayers.length > 0 && (
                 <button
                   onClick={exportProgress}
@@ -167,53 +145,83 @@ const InstructorDashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Add Player Form */}
-        {showAddForm && (
+        {/* Active Players Summary */}
+        {trackedPlayers.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="game-container p-6 mb-6"
           >
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Add Player Progress</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Player Name (optional)
-                </label>
-                <input
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  placeholder="Enter player's name..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  maxLength={40}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Progress Token
-                </label>
-                <textarea
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Paste the progress token from a player..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={handleAddPlayer}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Add Player
-                </button>
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">
+              👥 Active Players ({trackedPlayers.length})
+            </h2>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {trackedPlayers.map((player) => {
+                const lastUpdate = lastUpdateTimes[player.id]
+                const timeSinceUpdate = lastUpdate ? Date.now() - lastUpdate : null
+                const minutesAgo = timeSinceUpdate ? Math.floor(timeSinceUpdate / 60000) : null
+                const completed = player.progress.filter((p: any) => p.completed).length
+                
+                return (
+                  <div key={player.id} className="bg-white border-2 border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-800 text-lg">{player.name}</div>
+                        <div className="text-sm text-gray-600 capitalize">{player.difficulty}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {minutesAgo !== null && minutesAgo < 5 && (
+                          <div className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                            Active
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete ${player.name}?`)) {
+                              handleRemovePlayer(player.id)
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 font-bold text-lg"
+                          title="Delete player"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500">Progress:</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all"
+                              style={{ width: `${getOverallProgress(player)}%` }}
+                            ></div>
+                          </div>
+                          <span className="font-semibold">{getOverallProgress(player)}%</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Mission:</span>
+                        <span className="font-semibold">{player.currentMission}/6</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Completed:</span>
+                        <span className="font-semibold text-green-600">{completed}/6</span>
+                      </div>
+                      {minutesAgo !== null && (
+                        <div className="flex justify-between text-xs pt-2 border-t border-gray-200">
+                          <span className="text-gray-500">Last update:</span>
+                          <span className={minutesAgo < 5 ? 'text-green-600 font-semibold' : 'text-gray-600'}>
+                            {minutesAgo < 1 ? 'Just now' : `${minutesAgo} min ago`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </motion.div>
         )}
@@ -229,46 +237,95 @@ const InstructorDashboard: React.FC = () => {
               Tracked Players ({trackedPlayers.length})
             </h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {trackedPlayers.map((player) => (
-                <div key={player.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <input
-                        value={player.name}
-                        onChange={(e) => handleRenamePlayer(player.id, e.target.value)}
-                        placeholder="Player name"
-                        className="font-bold text-gray-800 bg-transparent border-b border-gray-200 focus:outline-none focus:border-blue-400"
-                      />
-                      <p className="text-sm text-gray-600 capitalize">{player.difficulty}</p>
+              {trackedPlayers.map((player) => {
+                const lastUpdate = lastUpdateTimes[player.id]
+                const minutesAgo = lastUpdate ? Math.floor((Date.now() - lastUpdate) / 60000) : null
+                const totalScore = player.progress.reduce((sum, p) => sum + (p.score || 0), 0)
+                const avgScore = player.progress.length > 0 
+                  ? Math.round(totalScore / player.progress.length) 
+                  : 0
+                const completed = player.progress.filter((p: any) => p.completed).length
+                
+                return (
+                  <div key={player.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <input
+                          value={player.name}
+                          onChange={(e) => handleRenamePlayer(player.id, e.target.value)}
+                          placeholder="Player name"
+                          className="font-bold text-gray-800 bg-transparent border-b border-gray-200 focus:outline-none focus:border-blue-400"
+                        />
+                        <p className="text-sm text-gray-600 capitalize">{player.difficulty}</p>
+                        {minutesAgo !== null && minutesAgo < 5 && (
+                          <p className="text-xs text-green-600 font-semibold mt-1">
+                            🟢 Active {minutesAgo < 1 ? 'now' : `${minutesAgo}m ago`}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete ${player.name}?`)) {
+                            handleRemovePlayer(player.id)
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 font-bold text-lg"
+                        title="Delete player"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleRemovePlayer(player.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      ✕
-                    </button>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Progress:</span>
+                        <span className="font-semibold">{getOverallProgress(player)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Current Mission:</span>
+                        <span className="font-semibold">{player.currentMission}/6</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Completed:</span>
+                        <span className="font-semibold text-green-600">{completed}/6</span>
+                      </div>
+                      {avgScore > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Avg Score:</span>
+                          <span className="font-semibold text-blue-600">{avgScore}/100</span>
+                        </div>
+                      )}
+                      {(() => {
+                        const quizScores = player.progress.filter((p: any) => p.quizScore !== undefined).map((p: any) => p.quizScore)
+                        const avgQuizScore = quizScores.length > 0 
+                          ? Math.round(quizScores.reduce((sum: number, score: number) => sum + score, 0) / quizScores.length)
+                          : null
+                        return avgQuizScore !== null && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Avg Quiz:</span>
+                            <span className="font-semibold text-purple-600">{avgQuizScore}%</span>
+                          </div>
+                        )
+                      })()}
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Time Spent:</span>
+                        <span className="font-semibold">{Math.round(player.totalTimeSpent / 60000)}min</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Hints Used:</span>
+                        <span className="font-semibold">{player.progress.reduce((sum, p) => sum + (p.hintsUsed || 0), 0)}</span>
+                      </div>
+                      {lastUpdate && (
+                        <div className="pt-2 border-t border-gray-200 text-xs text-gray-500">
+                          Last update: {minutesAgo !== null && minutesAgo < 60 
+                            ? `${minutesAgo} min ago` 
+                            : new Date(lastUpdate).toLocaleTimeString()}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Progress:</span>
-                      <span className="font-semibold">{getOverallProgress(player)}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Current Mission:</span>
-                      <span className="font-semibold">{player.currentMission}/6</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Time Spent:</span>
-                      <span className="font-semibold">{Math.round(player.totalTimeSpent / 60)}min</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Hints Used:</span>
-                      <span className="font-semibold">{player.progress.reduce((sum, p) => sum + (p.hintsUsed || 0), 0)}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </motion.div>
         )}
@@ -293,6 +350,7 @@ const InstructorDashboard: React.FC = () => {
                     <th className="text-center py-3 px-2 font-semibold text-gray-700">M5</th>
                     <th className="text-center py-3 px-2 font-semibold text-gray-700">M6</th>
                     <th className="text-center py-3 px-4 font-semibold text-gray-700">Overall</th>
+                    <th className="text-center py-3 px-4 font-semibold text-gray-700">Quiz Avg</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -306,9 +364,11 @@ const InstructorDashboard: React.FC = () => {
                       </td>
                       {[1, 2, 3, 4, 5, 6].map((missionId) => {
                         const status = getMissionStatus(player, missionId)
+                        const progress = player.progress.find((p: any) => p.missionId === missionId)
+                        const quizScore = progress?.quizScore
                         return (
                           <td key={missionId} className="text-center py-3 px-2">
-                            <div className={`w-8 h-8 rounded-full mx-auto flex items-center justify-center text-sm font-bold ${
+                            <div className={`w-8 h-8 rounded-full mx-auto flex items-center justify-center text-sm font-bold mb-1 ${
                               status === 'completed' 
                                 ? 'bg-green-500 text-white' 
                                 : status === 'unlocked'
@@ -317,6 +377,11 @@ const InstructorDashboard: React.FC = () => {
                             }`}>
                               {status === 'completed' ? '✓' : status === 'unlocked' ? '○' : '●'}
                             </div>
+                            {quizScore !== undefined && (
+                              <div className="text-xs text-purple-600 font-semibold">
+                                {quizScore}%
+                              </div>
+                            )}
                           </td>
                         )
                       })}
@@ -324,6 +389,29 @@ const InstructorDashboard: React.FC = () => {
                         <div className="font-semibold text-gray-800">
                           {getOverallProgress(player)}%
                         </div>
+                        {lastUpdateTimes[player.id] && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {(() => {
+                              const minutesAgo = Math.floor((Date.now() - lastUpdateTimes[player.id]) / 60000)
+                              return minutesAgo < 1 ? 'Just now' : `${minutesAgo} min ago`
+                            })()}
+                          </div>
+                        )}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        {(() => {
+                          const quizScores = player.progress.filter((p: any) => p.quizScore !== undefined).map((p: any) => p.quizScore)
+                          const avgQuizScore = quizScores.length > 0 
+                            ? Math.round(quizScores.reduce((sum: number, score: number) => sum + score, 0) / quizScores.length)
+                            : null
+                          return avgQuizScore !== null ? (
+                            <div className="font-semibold text-purple-600">
+                              {avgQuizScore}%
+                            </div>
+                          ) : (
+                            <div className="text-gray-400 text-sm">-</div>
+                          )
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -351,7 +439,7 @@ const InstructorDashboard: React.FC = () => {
         )}
 
         {/* Empty State */}
-        {trackedPlayers.length === 0 && !showAddForm && (
+        {trackedPlayers.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -359,16 +447,16 @@ const InstructorDashboard: React.FC = () => {
           >
             <div className="text-6xl mb-4">📊</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              No Players Tracked Yet
+              No Players Yet
             </h2>
             <p className="text-gray-600 mb-6">
-              Add players by pasting their progress tokens to start tracking their DevOps learning journey.
+              Players will appear here automatically when they start playing. Their progress updates in real-time!
             </p>
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={loadPlayers}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Add First Player
+              🔄 Refresh
             </button>
           </motion.div>
         )}

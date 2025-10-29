@@ -5,6 +5,8 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { useGameStore } from '../../store/gameStore'
 import ConceptCard from '../ConceptCard'
+import MissionGuide from '../MissionGuide'
+import MissionQuiz from '../MissionQuiz'
 import missionsData from '../../missions.json'
 
 interface PipelineJob {
@@ -311,10 +313,11 @@ function getYamlLineExplanation(line: string, jobName: string): string {
 
 const PipelineArchitect: React.FC = () => {
   const navigate = useNavigate()
-  const { player, updateMissionProgress, unlockNextMission } = useGameStore()
+  const { player, updateMissionProgress, unlockNextMission, generateProgressToken } = useGameStore()
   const [availableJobs, setAvailableJobs] = useState<PipelineJob[]>([])
   const [pipelineJobs, setPipelineJobs] = useState<PipelineJob[]>([])
   const [gameCompleted, setGameCompleted] = useState(false)
+  const [showQuiz, setShowQuiz] = useState(false)
   const [hintsUsed, setHintsUsed] = useState(0)
   const [startTime] = useState(Date.now())
   const [configuringJob, setConfiguringJob] = useState<PipelineJob | null>(null)
@@ -518,9 +521,23 @@ steps:
     
     setGameCompleted(true)
     
-    if (validation.allJobsPresent && validation.properDependencies && validation.allConfigured) {
+    if (validation.allJobsPresent && validation.properDependencies && validation.allConfigured && mission.quiz && mission.quiz.length > 0) {
+      setShowQuiz(true)
+    } else if (validation.allJobsPresent && validation.properDependencies && validation.allConfigured) {
       unlockNextMission()
     }
+  }
+
+  const handleQuizComplete = (_correctAnswers: number, quizScore: number) => {
+    updateMissionProgress(3, {
+      quizScore
+    })
+    setShowQuiz(false)
+    unlockNextMission()
+  }
+
+  const handleQuizSkip = () => {
+    setShowQuiz(false)
   }
 
   const handleHintUsed = () => {
@@ -529,6 +546,27 @@ steps:
 
   const handleNextMission = () => {
     navigate('/')
+  }
+
+  const handleShareProgress = () => {
+    const token = generateProgressToken()
+    navigator.clipboard.writeText(token)
+    alert('Progress token copied to clipboard! Share this with your instructor.')
+  }
+
+  const handleGoHome = () => {
+    navigate('/')
+  }
+
+  if (showQuiz && mission.quiz && mission.quiz.length > 0) {
+    return (
+      <MissionQuiz
+        questions={mission.quiz as any}
+        missionTitle={mission.title}
+        onComplete={handleQuizComplete}
+        onSkip={handleQuizSkip}
+      />
+    )
   }
 
   if (gameCompleted) {
@@ -584,13 +622,42 @@ steps:
               </p>
             </div>
           )}
+
+          {/* Progress Token */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">📤 Share Your Progress</h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={generateProgressToken()}
+                className="flex-1 px-4 py-2 bg-white border border-purple-300 rounded-lg text-sm font-mono text-gray-700"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                onClick={handleShareProgress}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-xs text-gray-600 mt-2">Share this token with your instructor</p>
+          </div>
           
-          <button
-            onClick={handleNextMission}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Continue to Mission Select
-          </button>
+          <div className="flex space-x-4 justify-center flex-wrap gap-2">
+            <button
+              onClick={handleGoHome}
+              className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              🏠 Home
+            </button>
+            <button
+              onClick={handleNextMission}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Continue to Mission Select
+            </button>
+          </div>
         </motion.div>
       </div>
     )
@@ -603,13 +670,22 @@ steps:
           {/* Header */}
           <div className="game-container p-6 mb-6">
             <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                  🏗️ Mission 3: Pipeline Architect
-                </h1>
-                <p className="text-gray-600">
-                  Design a CI/CD pipeline by connecting job nodes and configuring YAML
-                </p>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleGoHome}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  title="Go to Home"
+                >
+                  🏠 Home
+                </button>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                    🏗️ Mission 3: Pipeline Architect
+                  </h1>
+                  <p className="text-gray-600">
+                    Design a CI/CD pipeline by connecting job nodes and configuring YAML
+                  </p>
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-gray-500">Hints Used</div>
@@ -626,33 +702,82 @@ steps:
               className="game-container p-6 mb-6"
             >
               <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-800 mb-4">How to Build Your Pipeline</h2>
-                  <div className="grid md:grid-cols-3 gap-4 text-sm">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-blue-800 mb-2">1. Add Jobs</h3>
-                      <p className="text-blue-700">Click jobs from the left panel to add them to your pipeline</p>
-                    </div>
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-green-800 mb-2">2. Connect Dependencies</h3>
-                      <p className="text-green-700">Drag jobs onto each other to create dependencies (test → build → deploy)</p>
-                    </div>
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-purple-800 mb-2">3. Configure YAML</h3>
-                      <p className="text-purple-700">Click "Configure" on each job to set up the YAML configuration</p>
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">🎯 Step-by-Step Guide</h2>
+                  
+                  <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
+                    <h3 className="font-bold text-blue-900 mb-3 text-lg">Your Goal:</h3>
+                    <p className="text-blue-800 mb-2">Build a complete CI/CD pipeline with this flow:</p>
+                    <div className="flex items-center justify-center gap-2 flex-wrap font-mono text-sm bg-white p-3 rounded">
+                      <span className="px-3 py-1 bg-green-200 rounded">Test</span>
+                      <span className="text-blue-600">→</span>
+                      <span className="px-3 py-1 bg-green-200 rounded">Lint</span>
+                      <span className="text-blue-600">→</span>
+                      <span className="px-3 py-1 bg-blue-200 rounded">Build</span>
+                      <span className="text-blue-600">→</span>
+                      <span className="px-3 py-1 bg-purple-200 rounded">Push</span>
+                      <span className="text-blue-600">→</span>
+                      <span className="px-3 py-1 bg-orange-200 rounded">Deploy</span>
                     </div>
                   </div>
-                  <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm">
-                    <h3 className="font-semibold text-yellow-800 mb-1">What is a job?</h3>
-                    <p className="text-yellow-800">
-                      A job is a set of steps that runs on one runner machine. Jobs can depend on other jobs using <code className="font-mono">needs:</code> so they run in the right order.
-                      In this mission you'll connect jobs like <span className="font-semibold">test → build → push → deploy</span> and fill in minimal YAML. Comments in the templates explain each line.
-                    </p>
+
+                  <div className="grid md:grid-cols-3 gap-4 text-sm mb-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                        <span className="text-xl">1️⃣</span> Add Jobs
+                      </h3>
+                      <p className="text-blue-700 mb-2">
+                        Click each job card on the LEFT panel to add it to your pipeline canvas on the RIGHT.
+                      </p>
+                      <p className="text-xs text-blue-600 font-semibold">
+                        ✅ You need: Test, Lint, Build, Push, Deploy
+                      </p>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
+                        <span className="text-xl">2️⃣</span> Set Order
+                      </h3>
+                      <p className="text-green-700 mb-2">
+                        Drag a job ONTO another job to connect them. The dragged job runs FIRST.
+                      </p>
+                      <p className="text-xs text-green-600 font-semibold">
+                        📌 Example: Drag "Build" onto "Test" = Test runs first, then Build
+                      </p>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                        <span className="text-xl">3️⃣</span> Configure YAML
+                      </h3>
+                      <p className="text-purple-700 mb-2">
+                        Click "Configure" button on each job box to fill in the YAML code.
+                      </p>
+                      <p className="text-xs text-purple-600 font-semibold">
+                        💡 The template is pre-filled - just click "Save" if you're unsure!
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
+                    <h3 className="font-bold text-yellow-900 mb-2 flex items-center gap-2">
+                      <span>💡</span> Quick Example Flow
+                    </h3>
+                    <ol className="text-yellow-800 space-y-2 text-sm list-decimal list-inside">
+                      <li><strong>Click "Test"</strong> from left panel → appears on canvas</li>
+                      <li><strong>Click "Lint"</strong> → appears on canvas (can run parallel with Test)</li>
+                      <li><strong>Click "Build"</strong> → appears on canvas</li>
+                      <li><strong>Drag "Build" onto "Test"</strong> → Build waits for Test to finish</li>
+                      <li><strong>Click "Push"</strong> → appears on canvas</li>
+                      <li><strong>Drag "Push" onto "Build"</strong> → Push waits for Build</li>
+                      <li><strong>Click "Deploy"</strong> → appears on canvas</li>
+                      <li><strong>Drag "Deploy" onto "Push"</strong> → Deploy waits for Push</li>
+                      <li><strong>Click "Configure"</strong> on each job → Review YAML → Click "Save"</li>
+                      <li><strong>All jobs show green "✓ Configured"</strong> → Click "Submit Pipeline"</li>
+                    </ol>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowInstructions(false)}
-                  className="text-gray-500 hover:text-gray-700 text-xl"
+                  className="text-gray-500 hover:text-gray-700 text-xl ml-4"
                 >
                   ×
                 </button>
@@ -660,58 +785,109 @@ steps:
             </motion.div>
           )}
 
+          {/* Mission Guide */}
+          <MissionGuide mission={mission} />
+
           <div className="grid lg:grid-cols-2 gap-8">
             {/* Left Side - Available Jobs */}
             <div className="space-y-6">
               <div className="game-container p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Available Jobs</h2>
+                <h2 className="text-xl font-bold text-gray-800 mb-4">📦 Available Jobs</h2>
+                <p className="text-sm text-gray-600 mb-4">Click a job to add it to your pipeline canvas</p>
                 <div className="grid grid-cols-1 gap-3">
-                  {availableJobs.map((job) => (
-                    <div
-                      key={job.id}
-                      className="bg-gray-50 border border-gray-300 rounded-lg p-3 cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => handleJobDrop(job)}
-                    >
-                      <div className="text-sm font-semibold text-gray-800">{job.name}</div>
-                      <div className="text-xs text-gray-600">{job.description}</div>
-                      <div className="text-xs text-gray-500 mt-1">Click to add to pipeline</div>
-                    </div>
-                  ))}
+                  {availableJobs.map((job) => {
+                    const isAdded = pipelineJobs.some(j => j.id === job.id)
+                    return (
+                      <div
+                        key={job.id}
+                        className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                          isAdded 
+                            ? 'bg-green-50 border-green-400 opacity-60 cursor-not-allowed' 
+                            : 'bg-gray-50 border-gray-300 hover:bg-blue-50 hover:border-blue-400 hover:shadow-md'
+                        }`}
+                        onClick={() => !isAdded && handleJobDrop(job)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                              {job.name}
+                              {isAdded && <span className="text-green-600">✓ Added</span>}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">{job.description}</div>
+                          </div>
+                          {!isAdded && (
+                            <div className="text-xs text-blue-600 font-semibold ml-2">Click →</div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
+                {pipelineJobs.length === 0 && (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                    <strong>💡 Tip:</strong> Start by clicking "Test" from the list above to add it to your pipeline!
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Right Side - Pipeline Canvas */}
             <div className="space-y-6">
               <div className="game-container p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Pipeline Canvas</h2>
-                <div className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg" style={{ height: '500px' }}>
+                <h2 className="text-xl font-bold text-gray-800 mb-4">🏗️ Your Pipeline Canvas</h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  Drag jobs ONTO each other to connect them. The job you drag runs FIRST.
+                </p>
+                <div className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg" style={{ height: '500px', minHeight: '500px' }}>
                   {pipelineJobs.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">
                         <div className="text-4xl mb-4">🏗️</div>
-                        <p>Add jobs from the left panel to build your pipeline</p>
+                        <p className="font-semibold mb-2">Your pipeline canvas is empty</p>
+                        <p className="text-sm">Click jobs from the left panel to add them here</p>
+                        <p className="text-xs mt-2 text-gray-400">Then drag them onto each other to set the order</p>
                       </div>
                     </div>
                   ) : (
-                    pipelineJobs.map((job) => (
-                      <JobNode
-                        key={job.id}
-                        job={job}
-                        onConfigure={handleConfigureJob}
-                        onConnect={handleJobConnect}
-                      />
-                    ))
+                    <>
+                      {pipelineJobs.map((job) => (
+                        <JobNode
+                          key={job.id}
+                          job={job}
+                          onConfigure={handleConfigureJob}
+                          onConnect={handleJobConnect}
+                        />
+                      ))}
+                      {/* Show connection hints */}
+                      {pipelineJobs.length > 1 && (
+                        <div className="absolute bottom-4 left-4 bg-blue-50 border border-blue-300 rounded-lg p-3 text-xs text-blue-800 max-w-xs">
+                          <strong>💡 Drag tip:</strong> Drag one job box ONTO another to connect them. The job you drag runs first.
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 
-                <div className="mt-4 flex justify-between">
-                  <div className="text-sm text-gray-600">
-                    Jobs: {pipelineJobs.length} | Configured: {pipelineJobs.filter(j => j.configured).length}
+                <div className="mt-4 flex justify-between items-center">
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <div>Jobs added: <span className="font-semibold">{pipelineJobs.length}/5</span></div>
+                    <div>Configured: <span className="font-semibold text-green-600">{pipelineJobs.filter(j => j.configured).length}/{pipelineJobs.length}</span></div>
+                    {pipelineJobs.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-2">
+                        {pipelineJobs.filter(j => j.configured).length === pipelineJobs.length && pipelineJobs.length >= 5
+                          ? '✅ Ready to submit!'
+                          : '⚠️ Configure all jobs before submitting'}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={handleSubmit}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    disabled={pipelineJobs.length === 0 || pipelineJobs.some(j => !j.configured)}
+                    className={`px-6 py-2 text-white rounded-lg transition-colors ${
+                      pipelineJobs.length > 0 && pipelineJobs.every(j => j.configured)
+                        ? 'bg-green-600 hover:bg-green-700'
+                        : 'bg-gray-400 cursor-not-allowed'
+                    }`}
                   >
                     Submit Pipeline
                   </button>
