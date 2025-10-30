@@ -24,12 +24,26 @@ interface JobNodeProps {
   job: PipelineJob
   onConfigure: (job: PipelineJob) => void
   onConnect: (fromJob: string, toJob: string) => void
+  onMove: (jobId: string, position: { x: number; y: number }) => void
+  onRemove: (jobId: string) => void
+  getCanvasRect: () => DOMRect | null
 }
 
-const JobNode: React.FC<JobNodeProps> = ({ job, onConfigure, onConnect }) => {
+const JobNode: React.FC<JobNodeProps> = ({ job, onConfigure, onConnect, onMove, onRemove, getCanvasRect }) => {
   const [{ isDragging }, drag] = useDrag({
     type: 'pipeline-job',
     item: job,
+    end: (_item, monitor) => {
+      const client = monitor.getClientOffset()
+      const rect = getCanvasRect()
+      if (!client || !rect) return
+      // Center the drop roughly in the middle of the node (140x100)
+      const proposed = {
+        x: client.x - rect.left - 70,
+        y: client.y - rect.top - 50
+      }
+      onMove(job.id, proposed)
+    },
     collect: (monitor) => ({
       isDragging: monitor.isDragging()
     })
@@ -62,9 +76,16 @@ const JobNode: React.FC<JobNodeProps> = ({ job, onConfigure, onConnect }) => {
         height: '100px'
       }}
     >
-      <div className={`bg-white border-2 rounded-lg p-3 cursor-pointer hover:shadow-lg transition-all ${
+      <div className={`bg-white border-2 rounded-lg p-3 cursor-move hover:shadow-lg transition-all ${
         job.configured ? 'border-green-500 bg-green-50' : 'border-blue-500'
       }`}>
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(job.id) }}
+          title="Remove from canvas"
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-600 text-white text-sm leading-6"
+        >
+          ×
+        </button>
         <div className="text-sm font-semibold text-center text-gray-800 mb-1">
           {job.name}
         </div>
@@ -468,6 +489,22 @@ steps:
     }))
   }
 
+  const handleMoveJob = (jobId: string, position: { x: number; y: number }) => {
+    const canvasWidth = canvasRef.current?.clientWidth || 900
+    const canvasHeight = 500
+    const maxX = canvasWidth - 180
+    const maxY = canvasHeight - 120
+    const clamped = {
+      x: Math.min(Math.max(10, position.x), maxX),
+      y: Math.min(Math.max(10, position.y), maxY)
+    }
+    setPipelineJobs(prev => prev.map(j => j.id === jobId ? { ...j, position: clamped } : j))
+  }
+
+  const handleRemoveJob = (jobId: string) => {
+    setPipelineJobs(prev => prev.filter(j => j.id !== jobId))
+  }
+
   const handleConfigureJob = (job: PipelineJob) => {
     setConfiguringJob(job)
   }
@@ -850,6 +887,9 @@ steps:
                           job={job}
                           onConfigure={handleConfigureJob}
                           onConnect={handleJobConnect}
+                          onMove={handleMoveJob}
+                          onRemove={handleRemoveJob}
+                          getCanvasRect={() => canvasRef.current ? canvasRef.current.getBoundingClientRect() : null}
                         />
                       ))}
                       {/* Show connection hints */}
