@@ -13,6 +13,8 @@ interface LogError {
   type: 'error' | 'warning' | 'info'
   explanation: string
   suggestedFix: string
+  choices: string[]
+  correctIndex: number
   fixed: boolean
 }
 
@@ -22,6 +24,47 @@ interface ErrorCardProps {
 }
 
 const ErrorCard: React.FC<ErrorCardProps> = ({ error, onFix }) => {
+  const [selected, setSelected] = React.useState<number | null>(null)
+  const [feedback, setFeedback] = React.useState<string>('')
+
+  const explainChoice = (choiceText: string, isCorrect: boolean) => {
+    if (isCorrect) {
+      if (error.explanation.includes('package')) {
+        return 'Because the error is about a missing package, adding it to requirements.txt ensures the environment installs it in CI.'
+      }
+      if (error.explanation.includes('version')) {
+        return 'The resolver cannot find the requested version. Choosing an existing version resolves dependency resolution.'
+      }
+      if (error.explanation.includes('file')) {
+        return 'The runtime cannot open the referenced file. Creating it or fixing the path addresses the root cause.'
+      }
+      return 'This option directly addresses the root cause indicated by the log message.'
+    }
+    // Incorrect rationale based on typical misconceptions
+    if (/CPU|runner/i.test(choiceText)) return 'Resource limits do not cause import/lookup errors in dependency resolution.'
+    if (/cache/i.test(choiceText)) return 'Clearing cache may help build flakiness, but it does not create missing packages/files.'
+    if (/Disable tests|Ignore|rerun/i.test(choiceText)) return 'Bypassing the failure hides the problem and won\'t make the pipeline healthy.'
+    if (/restart/i.test(choiceText)) return 'Restarting can fix flakes, but version-not-found is deterministic and needs a valid version.'
+    if (/Pin Python/i.test(choiceText)) return 'Changing Python version rarely fixes a bad package version constraint.'
+    if (/sudo/i.test(choiceText)) return 'Privilege changes do not fix dependency or file path issues.'
+    if (/Install Node\.js/i.test(choiceText)) return 'This issue is in the Python step; Node dependencies are unrelated.'
+    if (/Switch branch/i.test(choiceText)) return 'Branch switching doesn\'t repair missing files in the current workspace.'
+    if (/Increase log verbosity/i.test(choiceText)) return 'More logs can help diagnose, but it does not fix the underlying error.'
+    return 'This option does not address the cause indicated by the error message.'
+  }
+
+  const handleApply = () => {
+    if (selected === null) return
+    const choiceText = error.choices[selected]
+    const isCorrect = selected === error.correctIndex
+    if (isCorrect) {
+      setFeedback(`Correct: ${explainChoice(choiceText, true)}`)
+      onFix(error)
+    } else {
+      setFeedback(`Not quite: ${explainChoice(choiceText, false)}`)
+    }
+  }
+
   return (
     <div className={`p-4 rounded-lg border-2 transition-all ${
       error.fixed 
@@ -46,17 +89,40 @@ const ErrorCard: React.FC<ErrorCardProps> = ({ error, onFix }) => {
         {error.content}
       </div>
       
-      <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
-        <div className="text-sm font-semibold text-blue-800 mb-1">Suggested Fix:</div>
-        <div className="text-sm text-blue-700">{error.suggestedFix}</div>
-      </div>
+      {!error.fixed ? (
+        <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
+          <div className="text-sm font-semibold text-blue-800 mb-2">Choose a fix:</div>
+          <div className="space-y-2">
+            {error.choices.map((choice, idx) => (
+              <label key={idx} className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`choice-${error.id}`}
+                  className="mt-1"
+                  checked={selected === idx}
+                  onChange={() => setSelected(idx)}
+                />
+                <span className="text-sm text-blue-800">{choice}</span>
+              </label>
+            ))}
+          </div>
+          {feedback && (
+            <div className={`mt-2 text-sm ${feedback.startsWith('Correct') ? 'text-green-700' : 'text-red-700'}`}>{feedback}</div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-green-50 border border-green-200 rounded p-3 mb-3 text-sm text-green-800">
+          {error.suggestedFix}
+        </div>
+      )}
       
       {!error.fixed && (
         <button
-          onClick={() => onFix(error)}
-          className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          onClick={handleApply}
+          className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60"
+          disabled={selected === null}
         >
-          Mark as Fixed
+          Apply Fix
         </button>
       )}
     </div>
@@ -98,16 +164,49 @@ const LogDetective: React.FC = () => {
         if (line.includes(errorText)) {
           let explanation = ''
           let suggestedFix = ''
+          let choices: string[] = []
+          let correctIndex = 0
           
           if (errorText.includes('ModuleNotFoundError')) {
             explanation = 'Python can\'t find a required package'
             suggestedFix = 'Add the missing package to requirements.txt'
+            choices = [
+              'Add the missing package to requirements.txt',
+              'Increase CPU limits of the CI runner',
+              'Clear the Docker cache and rebuild',
+              'Disable tests to bypass the error'
+            ]
+            correctIndex = 0
           } else if (errorText.includes('Could not find a version')) {
             explanation = 'The specified package version doesn\'t exist'
             suggestedFix = 'Update to a valid version number'
+            choices = [
+              'Update to a valid version number',
+              'Restart the CI job',
+              'Pin Python to 3.6 in Dockerfile',
+              'Add sudo to the pipeline'
+            ]
+            correctIndex = 0
           } else if (errorText.includes('FileNotFoundError')) {
             explanation = 'A required file is missing'
             suggestedFix = 'Create the missing file or check the file path'
+            choices = [
+              'Create the missing file or check the file path',
+              'Install Node.js dependencies',
+              'Switch branch and retry',
+              'Increase log verbosity'
+            ]
+            correctIndex = 0
+          } else {
+            explanation = 'Log indicates a potential issue'
+            suggestedFix = 'Investigate the log context and apply an appropriate fix'
+            choices = [
+              'Investigate the log context and apply an appropriate fix',
+              'Ignore and rerun',
+              'Comment out failing code',
+              'Turn off CI for this step'
+            ]
+            correctIndex = 0
           }
           
           errorObjects.push({
@@ -117,6 +216,8 @@ const LogDetective: React.FC = () => {
             type: line.includes('ERROR') ? 'error' : 'warning',
             explanation,
             suggestedFix,
+            choices,
+            correctIndex,
             fixed: false
           })
         }
