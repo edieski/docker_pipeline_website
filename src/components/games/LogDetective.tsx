@@ -75,6 +75,7 @@ const LogDetective: React.FC = () => {
   const [timeSpentMs, setTimeSpentMs] = useState(0)
   const [lastValidation, setLastValidation] = useState<ReturnType<typeof validateDetection> | null>(null)
   const [showInstructions, setShowInstructions] = useState(true)
+  const [highlightedErrorId, setHighlightedErrorId] = useState<string | null>(null)
 
   const mission = missionsData.missions.find(m => m.id === 4)
   
@@ -361,6 +362,15 @@ const LogDetective: React.FC = () => {
                   return (
                     <div
                       key={index}
+                      onClick={() => {
+                        if (!error) return
+                        setHighlightedErrorId(error.id)
+                        const el = document.getElementById(`error-card-${error.id}`)
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        }
+                        setTimeout(() => setHighlightedErrorId(null), 1200)
+                      }}
                       className={`${isError ? 'bg-red-900 text-red-300' : ''} p-1 rounded cursor-pointer hover:bg-gray-800`}
                     >
                       <span className="text-gray-500 mr-2">{String(index + 1).padStart(3, ' ')}</span>
@@ -382,11 +392,12 @@ const LogDetective: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-800 mb-4">Error Analysis</h2>
               <div className="space-y-4">
                 {errors.map((error) => (
-                  <ErrorCard
-                    key={error.id}
-                    error={error}
-                    onFix={handleFixError}
-                  />
+                  <div id={`error-card-${error.id}`} key={error.id} className={`${highlightedErrorId === error.id ? 'ring-2 ring-blue-400 rounded-lg' : ''}`}>
+                    <ErrorCard
+                      error={error}
+                      onFix={handleFixError}
+                    />
+                  </div>
                 ))}
               </div>
               

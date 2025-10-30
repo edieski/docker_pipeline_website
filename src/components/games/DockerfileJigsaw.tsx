@@ -187,12 +187,16 @@ const DockerfileJigsaw: React.FC = () => {
   }, [mission, player])
 
   const handleDrop = (item: DockerBlock, index: number) => {
-    // Remove from available blocks
+    // Remove dragged item from available list
     setAvailableBlocks(prev => prev.filter(block => block.id !== item.id))
-    
-    // Add to dropped blocks
+
+    // If slot already had a block, return it to the available list (swap behavior)
     setDroppedBlocks(prev => {
       const newBlocks = [...prev]
+      const replaced = newBlocks[index]
+      if (replaced) {
+        setAvailableBlocks(av => [...av, replaced])
+      }
       newBlocks[index] = item
       return newBlocks
     })

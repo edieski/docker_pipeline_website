@@ -7,6 +7,8 @@ import missionsData from '../missions.json'
 const VictoryScreen: React.FC = () => {
   const navigate = useNavigate()
   const { player, resetGame } = useGameStore()
+  const [token, setToken] = React.useState<string>("")
+  const [copied, setCopied] = React.useState<boolean>(false)
 
   if (!player) {
     navigate('/')
@@ -47,6 +49,21 @@ const VictoryScreen: React.FC = () => {
     navigate('/')
   }
 
+  React.useEffect(() => {
+    // Generate a fresh token when the victory screen mounts
+    try {
+      const t = useGameStore.getState().generateProgressToken()
+      setToken(t)
+    } catch {}
+  }, [])
+
+  const handleCopyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(token)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -190,6 +207,32 @@ const VictoryScreen: React.FC = () => {
                 <span className="text-2xl">{skills.incidentResponse ? '✅' : '❌'}</span>
               </div>
               <p className="text-sm text-gray-600 mt-1">Handling production outages</p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Share Progress Token */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.3 }}
+          className="bg-white rounded-xl p-6 mb-8 border border-blue-200"
+        >
+          <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">📩 Share Your Progress</h2>
+          <p className="text-gray-600 text-center mb-4">Copy this token and send it to your instructor to record your progress.</p>
+          <div className="flex flex-col gap-3">
+            <textarea
+              value={token}
+              readOnly
+              className="w-full h-28 p-3 border rounded-md font-mono text-sm bg-gray-50"
+            />
+            <div className="flex justify-center">
+              <button
+                onClick={handleCopyToken}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {copied ? '✅ Copied' : '📋 Copy token'}
+              </button>
             </div>
           </div>
         </motion.div>

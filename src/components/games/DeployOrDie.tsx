@@ -209,6 +209,19 @@ const DeployOrDie: React.FC = () => {
     setValidationErrors(errors)
   }
 
+  const isCurrentStepValid = () => {
+    const settings = steps[currentStep].settings
+    return settings.every((s) => {
+      if (!s.required) return true
+      const id = s.id
+      if (id === 'cpu') return Boolean(config.resources.cpu)
+      if (id === 'memory') return Boolean(config.resources.memory)
+      const value = (config as any)[id]
+      if (s.type === 'number') return typeof value === 'number' && value !== 0
+      return Boolean(value)
+    })
+  }
+
   const handleConfigChange = (field: string, value: any) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.')
@@ -695,7 +708,7 @@ const DeployOrDie: React.FC = () => {
               </div>
               
               {/* Navigation */}
-              <div className="flex justify-between mt-8">
+              <div className="flex justify-between mt-8 items-center">
                 <button
                   onClick={handlePreviousStep}
                   disabled={currentStep === 0}
@@ -705,11 +718,16 @@ const DeployOrDie: React.FC = () => {
                 </button>
                 <button
                   onClick={handleNextStep}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={!isCurrentStepValid()}
+                  title={!isCurrentStepValid() ? 'Complete required fields to continue' : ''}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   {currentStep === steps.length - 1 ? 'Deploy' : 'Next'}
                 </button>
               </div>
+              {!isCurrentStepValid() && (
+                <div className="text-xs text-red-500 mt-2">Please complete required fields in this section before continuing.</div>
+              )}
             </div>
           </div>
 

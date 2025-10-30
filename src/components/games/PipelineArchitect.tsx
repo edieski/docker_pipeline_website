@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
@@ -325,6 +325,7 @@ const PipelineArchitect: React.FC = () => {
   const [timeSpentMs, setTimeSpentMs] = useState(0)
   const [lastValidation, setLastValidation] = useState<ReturnType<typeof validatePipeline> | null>(null)
   const [jobsAddedAtSubmit, setJobsAddedAtSubmit] = useState(0)
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   const mission = missionsData.missions.find(m => m.id === 3)
   
@@ -428,9 +429,13 @@ steps:
   const handleJobDrop = (job: PipelineJob) => {
     // Add job to pipeline if not already there
     if (!pipelineJobs.find(j => j.id === job.id)) {
+      const canvasWidth = canvasRef.current?.clientWidth || 900
+      const boxWidth = 160 // job width + margin buffer
+      const baseX = 40 + pipelineJobs.length * 160
+      const clampedX = Math.min(baseX, Math.max(40, canvasWidth - boxWidth))
       const newJob = {
         ...job,
-        position: { x: 200 + pipelineJobs.length * 150, y: 200 }
+        position: { x: clampedX, y: 200 }
       }
       setPipelineJobs(prev => [...prev, newJob])
     }
@@ -812,7 +817,7 @@ steps:
                 <p className="text-sm text-gray-600 mb-4">
                   Drag jobs ONTO each other to connect them. The job you drag runs FIRST.
                 </p>
-                <div className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg" style={{ height: '500px', minHeight: '500px' }}>
+                <div ref={canvasRef} className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg overflow-visible pr-6" style={{ height: '500px', minHeight: '500px' }}>
                   {pipelineJobs.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">

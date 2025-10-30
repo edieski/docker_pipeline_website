@@ -188,12 +188,16 @@ const CacheCrash: React.FC = () => {
   }, [mission, player])
 
   const handleDrop = (item: DockerInstruction, index: number) => {
-    // Remove from available instructions
+    // Remove the dragged item from the available list
     setAvailableInstructions(prev => prev.filter(instruction => instruction.id !== item.id))
-    
-    // Add to dropped instructions
+
+    // If slot already had an instruction, return it to the available list (swap behavior)
     setDroppedInstructions(prev => {
       const newInstructions = [...prev]
+      const replaced = newInstructions[index]
+      if (replaced) {
+        setAvailableInstructions(av => [...av, replaced])
+      }
       newInstructions[index] = item
       return newInstructions
     })

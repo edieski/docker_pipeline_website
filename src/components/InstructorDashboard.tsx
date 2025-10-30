@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Player, getAllPlayersFromSharedStorage } from '../store/gameStore'
+import { Player, getAllPlayersFromSharedStorage, savePlayerToSharedStorage } from '../store/gameStore'
 
 const InstructorDashboard: React.FC = () => {
   const [trackedPlayers, setTrackedPlayers] = useState<Player[]>([])
   const [lastUpdateTimes, setLastUpdateTimes] = useState<Record<string, number>>({})
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [importTokenText, setImportTokenText] = useState('')
+  const [isAuthed, setIsAuthed] = useState<boolean>(() => {
+    return localStorage.getItem('instructor-auth-ok') === 'true'
+  })
+  const [passwordInput, setPasswordInput] = useState('')
+
+  const expectedPassword = (import.meta as any)?.env?.VITE_INSTRUCTOR_PASSWORD || 'DevOps!Workshop#2025'
 
   const loadPlayers = () => {
     const allPlayersData = getAllPlayersFromSharedStorage()
@@ -120,6 +127,77 @@ const InstructorDashboard: React.FC = () => {
     URL.revokeObjectURL(url)
   }
 
+  const importToken = () => {
+    try {
+      const raw = atob(importTokenText.trim())
+      const data = JSON.parse(raw)
+
+      let player: Player | null = null
+      if (data.player) {
+        player = {
+          id: data.player.id,
+          name: data.player.name,
+          difficulty: data.player.difficulty,
+          currentMission: data.player.currentMission,
+          progress: data.player.progress || [],
+          totalTimeSpent: data.player.totalTimeSpent || 0
+        }
+      } else {
+        player = {
+          id: data.playerId,
+          name: data.name || `Player ${String(data.playerId || '').slice(0,5)}`,
+          difficulty: data.difficulty || 'beginner',
+          currentMission: 1,
+          progress: [],
+          totalTimeSpent: data.timeSpent || 0
+        }
+      }
+
+      if (!player?.id) throw new Error('Invalid token: missing player id')
+
+      savePlayerToSharedStorage(player)
+      setImportTokenText('')
+      loadPlayers()
+      alert(`Imported progress for ${player.name}`)
+    } catch (e) {
+      alert('Invalid token. Please check and try again.')
+    }
+  }
+
+  if (!isAuthed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="game-container max-w-md w-full p-6">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Instructor Login</h1>
+          <p className="text-gray-600 mb-4">Enter the instructor password to view the dashboard.</p>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              placeholder="Password"
+              className="flex-1 px-3 py-2 border rounded"
+            />
+            <button
+              onClick={() => {
+                if (passwordInput === expectedPassword) {
+                  localStorage.setItem('instructor-auth-ok', 'true')
+                  setIsAuthed(true)
+                } else {
+                  alert('Incorrect password')
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Enter
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">Tip: set VITE_INSTRUCTOR_PASSWORD in a .env file for production.</p>
+        </div>
+      </div>
+    )
+  }
+
   const getMissionStatus = (player: Player, missionId: number) => {
     const progress = player.progress.find((p: any) => p.missionId === missionId)
     if (progress?.completed) return 'completed'
@@ -159,6 +237,20 @@ const InstructorDashboard: React.FC = () => {
               >
                 🔄 Refresh
               </button>
+              <div className="flex items-center gap-2">
+                <input
+                  value={importTokenText}
+                  onChange={(e) => setImportTokenText(e.target.value)}
+                  placeholder="Paste progress token"
+                  className="w-64 px-2 py-2 border rounded"
+                />
+                <button
+                  onClick={importToken}
+                  className="px-3 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                >
+                  Import
+                </button>
+              </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"

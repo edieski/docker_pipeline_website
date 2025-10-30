@@ -8,6 +8,7 @@ import DockerfileJigsaw from './components/games/DockerfileJigsaw'
 import { CacheCrash, PipelineArchitect, LogDetective, DeployOrDie, OutageSimulator } from './components/games'
 import InstructorDashboard from './components/InstructorDashboard'
 import VictoryScreen from './components/VictoryScreen'
+import TokenShareReminder from './components/TokenShareReminder'
 
 function App() {
   const { player } = useGameStore()
@@ -15,6 +16,7 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen force-styling">
+        <TokenShareReminder />
         <Routes>
           {/* Public routes */}
           <Route path="/instructor" element={<InstructorDashboard />} />
