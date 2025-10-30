@@ -549,7 +549,8 @@ steps:
       if (job.configured) yamlScore += 10
     })
     
-    const totalScore = Math.min(100 - (missingJobs.length * 20) + dependencyScore + yamlScore, 100)
+    // Make scoring more forgiving: smaller penalty per missing job
+    const totalScore = Math.min(100 - (missingJobs.length * 10) + dependencyScore + yamlScore, 100)
     
     return {
       score: totalScore,
@@ -557,7 +558,8 @@ steps:
       dependencyScore,
       yamlScore,
       allJobsPresent: missingJobs.length === 0,
-      properDependencies: dependencyScore >= 50,
+      // Easier pass on dependencies: allow if at least one key relationship is correct
+      properDependencies: dependencyScore >= 25,
       allConfigured: pipelineJobs.every(job => job.configured)
     }
   }
@@ -570,7 +572,8 @@ steps:
     setJobsAddedAtSubmit(pipelineJobs.length)
     
     updateMissionProgress(3, {
-      completed: validation.allJobsPresent && validation.properDependencies && validation.allConfigured,
+      // Easier completion: either core structure is right OR overall score is decent
+      completed: (validation.allJobsPresent && validation.properDependencies) || validation.score >= 70,
       timeSpent,
       hintsUsed,
       score: validation.score
@@ -578,9 +581,9 @@ steps:
     
     setGameCompleted(true)
     
-    if (validation.allJobsPresent && validation.properDependencies && validation.allConfigured && mission.quiz && mission.quiz.length > 0) {
+    if (((validation.allJobsPresent && validation.properDependencies) || validation.score >= 70) && mission.quiz && mission.quiz.length > 0) {
       setShowQuiz(true)
-    } else if (validation.allJobsPresent && validation.properDependencies && validation.allConfigured) {
+    } else if ((validation.allJobsPresent && validation.properDependencies) || validation.score >= 70) {
       unlockNextMission()
     }
   }
@@ -916,9 +919,9 @@ steps:
                   </div>
                   <button
                     onClick={handleSubmit}
-                    disabled={pipelineJobs.length === 0 || pipelineJobs.some(j => !j.configured)}
+                    disabled={pipelineJobs.length === 0}
                     className={`px-6 py-2 text-white rounded-lg transition-colors ${
-                      pipelineJobs.length > 0 && pipelineJobs.every(j => j.configured)
+                      pipelineJobs.length > 0
                         ? 'bg-green-600 hover:bg-green-700'
                         : 'bg-gray-400 cursor-not-allowed'
                     }`}

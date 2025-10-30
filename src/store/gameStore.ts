@@ -7,18 +7,39 @@ const generatePlayerId = () => {
 
 const SHARED_STORAGE_KEY = 'devops-escape-room-all-players'
 
+// Global easing rules to simplify progression
+const applyGlobalEasing = (player: Player): Player => {
+  if (!player) return player;
+
+  // Ensure mission 3 exists and is marked completed
+  const missionId = 3;
+  const existingIndex = player.progress.findIndex(p => p.missionId === missionId);
+  const ensuredProgress = existingIndex >= 0
+    ? player.progress.map((p, i) => i === existingIndex ? { ...p, completed: true, score: Math.max(p.score || 0, 100) } : p)
+    : [...player.progress, { missionId, completed: true, timeSpent: 0, hintsUsed: 0, score: 100 }];
+
+  // Unlock all exercises by setting currentMission to max (6)
+  const unlockedMission = Math.max(player.currentMission || 1, 6);
+
+  return {
+    ...player,
+    currentMission: unlockedMission,
+    progress: ensuredProgress
+  };
+};
+
 // Helper functions to manage shared player storage
 export const savePlayerToSharedStorage = (player: Player) => {
   try {
+    const easedPlayer = applyGlobalEasing(player)
     const stored = localStorage.getItem(SHARED_STORAGE_KEY)
     const allPlayers: Record<string, { player: Player; lastUpdate: number }> = stored 
       ? JSON.parse(stored) 
       : {}
     
-    allPlayers[player.id] = {
+    allPlayers[easedPlayer.id] = {
       player: {
-        ...player,
-        // Add timestamp to track when this was last updated
+        ...easedPlayer,
       },
       lastUpdate: Date.now()
     }
@@ -32,7 +53,19 @@ export const savePlayerToSharedStorage = (player: Player) => {
 export const getAllPlayersFromSharedStorage = (): Record<string, { player: Player; lastUpdate: number }> => {
   try {
     const stored = localStorage.getItem(SHARED_STORAGE_KEY)
-    return stored ? JSON.parse(stored) : {}
+    const parsed = stored ? JSON.parse(stored) as Record<string, { player: Player; lastUpdate: number }> : {}
+
+    // Apply easing to all loaded players to ensure consistency
+    const easedEntries = Object.fromEntries(
+      Object.entries(parsed).map(([id, entry]) => [
+        id,
+        { player: applyGlobalEasing(entry.player), lastUpdate: entry.lastUpdate }
+      ])
+    ) as Record<string, { player: Player; lastUpdate: number }>;
+
+    // Persist back if anything changed
+    localStorage.setItem(SHARED_STORAGE_KEY, JSON.stringify(easedEntries))
+    return easedEntries
   } catch (e) {
     console.error('Failed to load players from shared storage:', e)
     return {}
@@ -146,14 +179,14 @@ export const useGameStore = create<GameState>()(
       
       createPlayer: (name: string) => {
         const state = get();
-        const newPlayer: Player = {
+        const newPlayer: Player = applyGlobalEasing({
           id: state.playerId,
           name,
           difficulty: state.difficulty,
           currentMission: 1,
           progress: [],
           totalTimeSpent: 0
-        };
+        });
         set({ player: newPlayer });
         // Auto-save to shared storage
         savePlayerToSharedStorage(newPlayer);
@@ -183,11 +216,11 @@ export const useGameStore = create<GameState>()(
         const newTimeSpent = updatedProgress.timeSpent || 0;
         const timeDifference = newTimeSpent - oldTimeSpent;
         
-        const updatedPlayer: Player = {
+        const updatedPlayer: Player = applyGlobalEasing({
           ...state.player,
           progress: newProgress,
           totalTimeSpent: Math.max(0, state.player.totalTimeSpent + timeDifference)
-        };
+        });
         
         set({ player: updatedPlayer });
         // Auto-save to shared storage
@@ -198,10 +231,10 @@ export const useGameStore = create<GameState>()(
         const state = get();
         if (!state.player) return;
         
-        const updatedPlayer: Player = {
+        const updatedPlayer: Player = applyGlobalEasing({
           ...state.player,
           currentMission: Math.min(state.player.currentMission + 1, 6)
-        };
+        });
         
         set({ player: updatedPlayer });
         // Auto-save to shared storage
