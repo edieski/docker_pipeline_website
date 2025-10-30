@@ -10,7 +10,7 @@ def root():
 
 @app.get("/health")
 def health():
-    return jsonify(status="learning docker"), 200
+    return jsonify(status="learning docker and pipelines"), 200
 
 
 if __name__ == "__main__":
