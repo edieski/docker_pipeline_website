@@ -11,6 +11,8 @@ const InstructorDashboard: React.FC = () => {
     return localStorage.getItem('instructor-auth-ok') === 'true'
   })
   const [passwordInput, setPasswordInput] = useState('')
+  const [newPlayerName, setNewPlayerName] = useState('')
+  const [newPlayerDifficulty, setNewPlayerDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner')
 
   const expectedPassword = (import.meta as any)?.env?.VITE_INSTRUCTOR_PASSWORD || 'DevOps!Workshop#2025'
 
@@ -164,6 +166,26 @@ const InstructorDashboard: React.FC = () => {
     }
   }
 
+  const createManualPlayer = () => {
+    try {
+      const id = Math.random().toString(36).slice(2, 11)
+      const player: Player = {
+        id,
+        name: newPlayerName.trim() || `Player ${id.slice(0,5)}`,
+        difficulty: newPlayerDifficulty,
+        currentMission: 1,
+        progress: [],
+        totalTimeSpent: 0
+      }
+      savePlayerToSharedStorage(player)
+      setNewPlayerName('')
+      setNewPlayerDifficulty('beginner')
+      loadPlayers()
+    } catch {
+      alert('Failed to create player')
+    }
+  }
+
   if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -228,7 +250,7 @@ const InstructorDashboard: React.FC = () => {
                 Track student progress in real-time
               </p>
             </div>
-            <div className="flex gap-4 items-center">
+            <div className="flex gap-4 items-center flex-wrap">
               <button
                 onClick={() => {
                   loadPlayers()
@@ -237,6 +259,30 @@ const InstructorDashboard: React.FC = () => {
               >
                 🔄 Refresh
               </button>
+              {/* Manual add player */}
+              <div className="flex items-center gap-2">
+                <input
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  placeholder="New player name"
+                  className="w-44 px-2 py-2 border rounded"
+                />
+                <select
+                  value={newPlayerDifficulty}
+                  onChange={(e) => setNewPlayerDifficulty(e.target.value as any)}
+                  className="px-2 py-2 border rounded"
+                >
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+                <button
+                  onClick={createManualPlayer}
+                  className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  + Add Player
+                </button>
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   value={importTokenText}

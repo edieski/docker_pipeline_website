@@ -53,7 +53,7 @@ const JobNode: React.FC<JobNodeProps> = ({ job, onConfigure, onConnect }) => {
         drag(node)
         drop(node)
       }}
-      className={`job-node ${isDragging ? 'opacity-50' : ''} ${isOver ? 'ring-2 ring-blue-400' : ''}`}
+      className={`job-node z-10 ${isDragging ? 'opacity-50' : ''} ${isOver ? 'ring-2 ring-blue-400' : ''}`}
       style={{
         position: 'absolute',
         left: job.position.x,
@@ -327,6 +327,21 @@ const PipelineArchitect: React.FC = () => {
   const [jobsAddedAtSubmit, setJobsAddedAtSubmit] = useState(0)
   const canvasRef = useRef<HTMLDivElement>(null)
 
+  // Re-clamp job positions when the canvas resizes so nodes never end up off-canvas
+  useEffect(() => {
+    const handler = () => {
+      const canvasWidth = canvasRef.current?.clientWidth
+      if (!canvasWidth) return
+      const maxX = canvasWidth - 180
+      setPipelineJobs(prev => prev.map(j => ({
+        ...j,
+        position: { x: Math.min(Math.max(40, j.position.x), maxX), y: j.position.y }
+      })))
+    }
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
   const mission = missionsData.missions.find(m => m.id === 3)
   
   if (!mission || !player) {
@@ -430,8 +445,8 @@ steps:
     // Add job to pipeline if not already there
     if (!pipelineJobs.find(j => j.id === job.id)) {
       const canvasWidth = canvasRef.current?.clientWidth || 900
-      const boxWidth = 160 // job width + margin buffer
-      const baseX = 40 + pipelineJobs.length * 160
+      const boxWidth = 180 // job width + margin buffer
+      const baseX = 40 + pipelineJobs.length * 170
       const clampedX = Math.min(baseX, Math.max(40, canvasWidth - boxWidth))
       const newJob = {
         ...job,
@@ -817,7 +832,7 @@ steps:
                 <p className="text-sm text-gray-600 mb-4">
                   Drag jobs ONTO each other to connect them. The job you drag runs FIRST.
                 </p>
-                <div ref={canvasRef} className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg overflow-visible pr-6" style={{ height: '500px', minHeight: '500px' }}>
+                <div ref={canvasRef} className="relative bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg overflow-x-auto pr-10" style={{ height: '500px', minHeight: '500px' }}>
                   {pipelineJobs.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">
